@@ -55,15 +55,41 @@ class CompleteFarmerRegistrationService:
                     )
 
                 farm = None
+                farm_data = {}
                 if entity_data.get('farm') and plot:
+                    # Merge top-level farm data (like plantation_date) if not in individual farm data
+                    farm_data = entity_data['farm'].copy() if entity_data.get('farm') else {}
+                    
+                    # If plantation_date is not in individual farm data, check top level
+                    if not farm_data.get('plantation_date') and data.get('farm', {}).get('plantation_date'):
+                        farm_data['plantation_date'] = data['farm']['plantation_date']
+                    
+                    # If other farm fields are missing, use top-level as fallback
+                    if not farm_data.get('address') and data.get('farm', {}).get('address'):
+                        farm_data['address'] = data['farm']['address']
+                    if not farm_data.get('area_size') and data.get('farm', {}).get('area_size'):
+                        farm_data['area_size'] = data['farm']['area_size']
+                    if not farm_data.get('soil_type_name') and data.get('farm', {}).get('soil_type_name'):
+                        farm_data['soil_type_name'] = data['farm']['soil_type_name']
+                    if not farm_data.get('crop_type_name') and data.get('farm', {}).get('crop_type_name'):
+                        farm_data['crop_type_name'] = data['farm']['crop_type_name']
+                    if not farm_data.get('plantation_type') and data.get('farm', {}).get('plantation_type'):
+                        farm_data['plantation_type'] = data['farm']['plantation_type']
+                    if not farm_data.get('planting_method') and data.get('farm', {}).get('planting_method'):
+                        farm_data['planting_method'] = data['farm']['planting_method']
+                    if not farm_data.get('spacing_a') and data.get('farm', {}).get('spacing_a'):
+                        farm_data['spacing_a'] = data['farm']['spacing_a']
+                    if not farm_data.get('spacing_b') and data.get('farm', {}).get('spacing_b'):
+                        farm_data['spacing_b'] = data['farm']['spacing_b']
+                    
                     farm = CompleteFarmerRegistrationService._create_farm(
-                        entity_data['farm'], farmer, field_officer, plot
+                        farm_data, farmer, field_officer, plot
                     )
 
                 irrigation = None
                 if entity_data.get('irrigation') and farm:
                     irrigation = CompleteFarmerRegistrationService._create_farm_irrigation(
-                        entity_data['irrigation'], farm, field_officer, entity_data.get('farm', {})
+                        entity_data['irrigation'], farm, field_officer, farm_data
                     )
                 created_entities.append({'plot': plot, 'farm': farm, 'irrigation': irrigation})
 
@@ -230,6 +256,21 @@ class CompleteFarmerRegistrationService:
                 defaults={}
             )
         
+        # Parse plantation_date if provided
+        plantation_date = None
+        if farm_data.get('plantation_date'):
+            try:
+                from datetime import datetime
+                # Handle string date format (YYYY-MM-DD)
+                if isinstance(farm_data['plantation_date'], str):
+                    plantation_date = datetime.strptime(farm_data['plantation_date'], '%Y-%m-%d').date()
+                else:
+                    # Already a date object
+                    plantation_date = farm_data['plantation_date']
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid plantation_date format: {farm_data.get('plantation_date')}. Error: {str(e)}")
+                plantation_date = None
+        
         # Create farm
         farm = Farm.objects.create(
             address=farm_data['address'],
@@ -239,12 +280,12 @@ class CompleteFarmerRegistrationService:
             plot=plot,
             soil_type=soil_type,
             crop_type=crop_type,
-            plantation_date=farm_data.get('plantation_date'),
+            plantation_date=plantation_date,
             spacing_a=farm_data.get('spacing_a'),
             spacing_b=farm_data.get('spacing_b')
         )
         
-        logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username}")
+        logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username} with plantation_date: {plantation_date}")
         return farm
     
     @staticmethod
