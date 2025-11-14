@@ -220,7 +220,13 @@ LEAFLET_CONFIG = {
 EVENTS_API_URL = os.environ.get('EVENTS_API_URL', 'https://dev-events.cropeye.ai')
 SOIL_API_URL = os.environ.get('SOIL_API_URL', 'https://dev-soil.cropeye.ai')
 ADMIN_API_URL = os.environ.get('ADMIN_API_URL', 'https://dev-plot.cropeye.ai')
-FIELD_API_URL = os.environ.get('FIELD_API_URL', ' https://dev-field.cropeye.ai')
+FIELD_API_URL = os.environ.get('FIELD_API_URL', 'https://dev-field.cropeye.ai')
+
+# FastAPI Authentication Credentials
+ADMIN_API_USERNAME = os.environ.get('ADMIN_API_USERNAME', 'devuser')
+ADMIN_API_PASSWORD = os.environ.get('ADMIN_API_PASSWORD', 'KGZvvyd*9k')
+FIELD_API_USERNAME = os.environ.get('FIELD_API_USERNAME', 'devuser')
+FIELD_API_PASSWORD = os.environ.get('FIELD_API_PASSWORD', 'KGZvvyd*9k')
 
 # WhatsApp OTP Configuration (Twilio)
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')

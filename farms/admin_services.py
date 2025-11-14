@@ -1,5 +1,6 @@
 import json
 import requests
+from requests.auth import HTTPBasicAuth
 from django.conf import settings
 from typing import Dict, Any, Optional
 import logging
@@ -13,6 +14,9 @@ class AdminSyncService:
     
     def __init__(self):
         self.admin_api_url = getattr(settings, 'ADMIN_API_URL', 'http://localhost:7030')
+        self.username = getattr(settings, 'ADMIN_API_USERNAME', 'devuser')
+        self.password = getattr(settings, 'ADMIN_API_PASSWORD', 'KGZvvyd*9k')
+        self.auth = HTTPBasicAuth(self.username, self.password)
     
     def sync_plot_to_admin(self, plot_instance) -> bool:
         """
@@ -33,6 +37,7 @@ class AdminSyncService:
                 f"{self.admin_api_url}/sync/plot",
                 json=plot_data,
                 headers={'Content-Type': 'application/json'},
+                auth=self.auth,
                 timeout=10
             )
             
@@ -124,6 +129,7 @@ class AdminSyncService:
                 f"{self.admin_api_url}/sync/plots",
                 json={"plots": plot_list},
                 headers={'Content-Type': 'application/json'},
+                auth=self.auth,
                 timeout=30
             )
             
@@ -151,6 +157,7 @@ class AdminSyncService:
         try:
             response = requests.delete(
                 f"{self.admin_api_url}/sync/plot/{plot_id}",
+                auth=self.auth,
                 timeout=10
             )
             
@@ -187,6 +194,7 @@ class AdminSyncService:
             response = requests.post(
                 f"{self.admin_api_url}/analyze",
                 params=params,
+                auth=self.auth,
                 timeout=60
             )
             
