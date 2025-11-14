@@ -217,11 +217,10 @@ LEAFLET_CONFIG = {
 }
 
 # FastAPI Services URLs (Public tunnel URLs for hosted Django to sync with local FastAPI)
-EVENTS_API_URL = os.environ.get('EVENTS_API_URL', 'https://events-cropeye.loca.lt')
-SOIL_API_URL = os.environ.get('SOIL_API_URL', 'https://soil-cropeye.loca.lt')
-ADMIN_API_URL = os.environ.get('ADMIN_API_URL', 'https://admin-cropeye.loca.lt')
-ET_API_URL = os.environ.get('ET_API_URL', 'https://et-cropeye.loca.lt')
-FIELD_API_URL = os.environ.get('FIELD_API_URL', 'https://field-cropeye.loca.lt')
+EVENTS_API_URL = os.environ.get('EVENTS_API_URL', 'https://dev-events.cropeye.ai')
+SOIL_API_URL = os.environ.get('SOIL_API_URL', 'https://dev-soil.cropeye.ai')
+ADMIN_API_URL = os.environ.get('ADMIN_API_URL', 'https://dev-plot.cropeye.ai')
+FIELD_API_URL = os.environ.get('FIELD_API_URL', ' https://dev-field.cropeye.ai')
 
 # WhatsApp OTP Configuration (Twilio)
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
