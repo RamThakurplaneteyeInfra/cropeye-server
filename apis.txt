@@ -2534,11 +2534,6 @@ Sync Mechanism:
 - **Virtual Environment**: ✅ **ACTIVATED** (envm)
 - **Dependencies**: ✅ **ALL INSTALLED**
 
-### **🤖 AI Integration**
-- **Qwen AI Model**: ✅ **LOADED** (MiniPLM-Qwen-200M-Q8_0.gguf)
-- **Chatbot API**: ✅ **READY** (Port 8000)
-- **Model Status**: 203.44M parameters, 206.27 MiB
-
 ## 🌟 **SYSTEM FEATURES STATUS**
 
 ### **✅ Core Features Working**
@@ -2597,7 +2592,6 @@ Sync Mechanism:
 1. **API Testing**: Use Postman collection provided
 2. **Frontend Integration**: Connect to Django REST API
 3. **GIS Integration**: Use GeoJSON endpoints for mapping
-4. **AI Features**: Integrate with chatbot API
 
 ### **For System Administrators:**
 1. **Monitor Services**: All 7 services running successfully
@@ -2833,4 +2827,754 @@ python test_manager_api.py
 ### **🎉 API Successfully Implemented!**
 
 **The Manager Field Officers API is now fully functional and ready for production use. Managers can now efficiently manage and monitor their field officers with comprehensive statistics and hierarchical data access.** 
+
+---
+
+# 💬 **TWO-WAY COMMUNICATION SYSTEM**
+
+## 📋 **Overview**
+
+The system provides a complete two-way messaging system with role-based communication rules. Users can send and receive messages based on their roles in the organizational hierarchy.
+
+## 🔐 **Communication Rules**
+
+The system enforces the following communication hierarchy:
+
+### **✅ Allowed Communication Paths:**
+
+1. **Owner ↔ Manager** (bidirectional)
+   - Owner can message Manager
+   - Manager can message Owner
+
+2. **Manager ↔ Field Officer** (bidirectional)
+   - Manager can message Field Officer
+   - Field Officer can message Manager
+
+3. **Field Officer ↔ Manager ↔ Owner** (multi-directional)
+   - Field Officer can message Manager
+   - Field Officer can message Owner
+   - Manager can message Field Officer
+   - Owner can message Field Officer
+
+4. **Field Officer ↔ Farmer** (bidirectional)
+   - Field Officer can message Farmer
+   - Farmer can message Field Officer
+
+5. **Farmer ↔ Field Officer** (bidirectional)
+   - Same as above (explicitly documented)
+
+### **🚫 Restricted Communications:**
+
+- Users cannot message themselves
+- Users can only communicate with roles specified in the communication rules
+- Superuser and Admin can communicate with anyone
+
+## 🌐 **API Endpoints**
+
+### **Base URL**: `/api/conversations/` and `/api/messages/`
+
+All endpoints require JWT authentication:
+```bash
+Authorization: Bearer <your_access_token>
+```
+
+---
+
+## 📨 **CONVERSATION ENDPOINTS**
+
+### **1. List All Conversations**
+
+Get all conversations for the authenticated user.
+
+**Endpoint**: `GET /api/conversations/`
+
+**Authentication**: Required (JWT Token)
+
+**Response** (200 OK):
+```json
+[
+  {
+    "id": 1,
+    "participant1": {
+      "id": 1,
+      "username": "owner1",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "owner@example.com",
+      "role_name": "owner",
+      "role_display": "Owner"
+    },
+    "participant2": {
+      "id": 2,
+      "username": "manager1",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "email": "manager@example.com",
+      "role_name": "manager",
+      "role_display": "Manager"
+    },
+    "other_participant": {
+      "id": 2,
+      "username": "manager1",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "email": "manager@example.com",
+      "role_name": "manager",
+      "role_display": "Manager"
+    },
+    "last_message": {
+      "id": 10,
+      "sender": {
+        "id": 2,
+        "username": "manager1",
+        "first_name": "Jane",
+        "last_name": "Smith"
+      },
+      "content": "Latest message content",
+      "is_read": false,
+      "created_at": "2025-01-19T10:30:00Z"
+    },
+    "unread_count": 3,
+    "created_at": "2025-01-19T09:00:00Z",
+    "updated_at": "2025-01-19T10:30:00Z",
+    "last_message_at": "2025-01-19T10:30:00Z"
+  }
+]
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/conversations/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **2. Get or Create Conversation with Specific User**
+
+Get or create a conversation with a specific user.
+
+**Endpoint**: `GET /api/conversations/with-user/{user_id}/`
+
+**Authentication**: Required (JWT Token)
+
+**URL Parameters**:
+- `user_id` (integer, required): ID of the user to start conversation with
+
+**Response** (200 OK):
+```json
+{
+  "id": 1,
+  "participant1": {
+    "id": 1,
+    "username": "owner1",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "owner@example.com",
+    "role_name": "owner",
+    "role_display": "Owner"
+  },
+  "participant2": {
+    "id": 2,
+    "username": "manager1",
+    "first_name": "Jane",
+    "last_name": "Smith",
+    "email": "manager@example.com",
+    "role_name": "manager",
+    "role_display": "Manager"
+  },
+  "other_participant": {
+    "id": 2,
+    "username": "manager1",
+    "first_name": "Jane",
+    "last_name": "Smith"
+  },
+  "last_message": null,
+  "unread_count": 0,
+  "created_at": "2025-01-19T09:00:00Z",
+  "updated_at": "2025-01-19T09:00:00Z",
+  "last_message_at": null
+}
+```
+
+**Error Response** (403 Forbidden - Communication Not Allowed):
+```json
+{
+  "error": "You are not allowed to communicate with this user based on your roles."
+}
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/conversations/with-user/2/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **3. Get Messages in Conversation**
+
+Get all messages in a specific conversation.
+
+**Endpoint**: `GET /api/conversations/{conversation_id}/messages/`
+
+**Authentication**: Required (JWT Token)
+
+**URL Parameters**:
+- `conversation_id` (integer, required): ID of the conversation
+
+**Response** (200 OK):
+```json
+[
+  {
+    "id": 1,
+    "conversation": 1,
+    "sender": {
+      "id": 1,
+      "username": "owner1",
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "owner@example.com",
+      "role_name": "owner",
+      "role_display": "Owner"
+    },
+    "content": "Hello, how are you?",
+    "read_at": null,
+    "is_read": false,
+    "created_at": "2025-01-19T10:00:00Z",
+    "updated_at": "2025-01-19T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "conversation": 1,
+    "sender": {
+      "id": 2,
+      "username": "manager1",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "email": "manager@example.com",
+      "role_name": "manager",
+      "role_display": "Manager"
+    },
+    "content": "I'm doing well, thank you!",
+    "read_at": "2025-01-19T10:05:00Z",
+    "is_read": true,
+    "created_at": "2025-01-19T10:05:00Z",
+    "updated_at": "2025-01-19T10:05:00Z"
+  }
+]
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/conversations/1/messages/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **4. Mark Conversation as Read**
+
+Mark all unread messages in a conversation as read.
+
+**Endpoint**: `POST /api/conversations/{conversation_id}/mark-read/`
+
+**Authentication**: Required (JWT Token)
+
+**URL Parameters**:
+- `conversation_id` (integer, required): ID of the conversation
+
+**Response** (200 OK):
+```json
+{
+  "message": "Marked 3 message(s) as read."
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:8000/api/conversations/1/mark-read/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+## 📩 **MESSAGE ENDPOINTS**
+
+### **1. Send a Message**
+
+Send a new message to a user. Creates a conversation if it doesn't exist.
+
+**Endpoint**: `POST /api/messages/`
+
+**Authentication**: Required (JWT Token)
+
+**Request Body**:
+```json
+{
+  "recipient_id": 2,
+  "content": "Hello, this is a test message."
+}
+```
+
+**Request Parameters**:
+- `recipient_id` (integer, required): ID of the user to send message to
+- `content` (string, required): Message content/text
+
+**Response** (201 Created):
+```json
+{
+  "id": 15,
+  "conversation": 1,
+  "sender": {
+    "id": 1,
+    "username": "owner1",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "owner@example.com",
+    "role_name": "owner",
+    "role_display": "Owner"
+  },
+  "content": "Hello, this is a test message.",
+  "read_at": null,
+  "is_read": false,
+  "created_at": "2025-01-19T11:00:00Z",
+  "updated_at": "2025-01-19T11:00:00Z"
+}
+```
+
+**Error Response** (403 Forbidden - Communication Not Allowed):
+```json
+{
+  "error": "You are not allowed to communicate with this user based on your roles."
+}
+```
+
+**Error Response** (400 Bad Request - Invalid Data):
+```json
+{
+  "recipient_id": ["This field is required."],
+  "content": ["This field is required."]
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:8000/api/messages/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient_id": 2,
+    "content": "Hello, this is a test message."
+  }'
+```
+
+---
+
+### **2. List All Messages**
+
+Get all messages for the authenticated user (across all conversations).
+
+**Endpoint**: `GET /api/messages/`
+
+**Authentication**: Required (JWT Token)
+
+**Response** (200 OK):
+```json
+[
+  {
+    "id": 1,
+    "conversation": 1,
+    "sender": {
+      "id": 1,
+      "username": "owner1",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role_name": "owner"
+    },
+    "content": "Hello, how are you?",
+    "read_at": null,
+    "is_read": false,
+    "created_at": "2025-01-19T10:00:00Z",
+    "updated_at": "2025-01-19T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "conversation": 1,
+    "sender": {
+      "id": 2,
+      "username": "manager1",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "role_name": "manager"
+    },
+    "content": "I'm doing well, thank you!",
+    "read_at": "2025-01-19T10:05:00Z",
+    "is_read": true,
+    "created_at": "2025-01-19T10:05:00Z",
+    "updated_at": "2025-01-19T10:05:00Z"
+  }
+]
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/messages/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **3. Get Unread Message Count**
+
+Get total count of unread messages for the authenticated user.
+
+**Endpoint**: `GET /api/messages/unread-count/`
+
+**Authentication**: Required (JWT Token)
+
+**Response** (200 OK):
+```json
+{
+  "unread_count": 5
+}
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/messages/unread-count/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **4. Get Unread Messages**
+
+Get all unread messages for the authenticated user.
+
+**Endpoint**: `GET /api/messages/unread/`
+
+**Authentication**: Required (JWT Token)
+
+**Response** (200 OK):
+```json
+[
+  {
+    "id": 10,
+    "conversation": 1,
+    "sender": {
+      "id": 2,
+      "username": "manager1",
+      "first_name": "Jane",
+      "last_name": "Smith",
+      "role_name": "manager"
+    },
+    "content": "This is an unread message",
+    "read_at": null,
+    "is_read": false,
+    "created_at": "2025-01-19T10:30:00Z",
+    "updated_at": "2025-01-19T10:30:00Z"
+  }
+]
+```
+
+**Example Request**:
+```bash
+curl -X GET "http://localhost:8000/api/messages/unread/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+### **5. Mark Message as Read**
+
+Mark a specific message as read.
+
+**Endpoint**: `POST /api/messages/{message_id}/mark-read/`
+
+**Authentication**: Required (JWT Token)
+
+**URL Parameters**:
+- `message_id` (integer, required): ID of the message to mark as read
+
+**Response** (200 OK):
+```json
+{
+  "message": "Message marked as read."
+}
+```
+
+**Error Response** (403 Forbidden):
+```json
+{
+  "error": "You cannot mark your own message as read."
+}
+```
+
+**Example Request**:
+```bash
+curl -X POST "http://localhost:8000/api/messages/10/mark-read/" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+## 🎯 **COMMUNICATION SCENARIOS**
+
+### **Scenario 1: Owner ↔ Manager Communication**
+
+**Owner sends message to Manager**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 2,  # Manager ID
+  "content": "Please provide a status update on field operations."
+}
+```
+
+**Manager responds to Owner**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 1,  # Owner ID
+  "content": "All field operations are running smoothly. We have registered 50 new farmers this month."
+}
+```
+
+---
+
+### **Scenario 2: Manager ↔ Field Officer Communication**
+
+**Manager sends message to Field Officer**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 3,  # Field Officer ID
+  "content": "Please complete the farmer registration for the Rajapur region by end of week."
+}
+```
+
+**Field Officer responds to Manager**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 2,  # Manager ID
+  "content": "Understood. I will complete the registrations by Friday."
+}
+```
+
+---
+
+### **Scenario 3: Field Officer ↔ Manager ↔ Owner Communication**
+
+**Field Officer sends message to Owner**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 1,  # Owner ID
+  "content": "I need additional resources for the upcoming harvest season."
+}
+```
+
+**Field Officer sends message to Manager**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 2,  # Manager ID
+  "content": "I have completed all farmer registrations for my assigned region."
+}
+```
+
+**Owner responds to Field Officer**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 3,  # Field Officer ID
+  "content": "I will review your request and get back to you."
+}
+```
+
+---
+
+### **Scenario 4: Field Officer ↔ Farmer Communication**
+
+**Field Officer sends message to Farmer**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 5,  # Farmer ID
+  "content": "Your irrigation system needs maintenance. Please schedule a visit."
+}
+```
+
+**Farmer responds to Field Officer**:
+```bash
+POST /api/messages/
+{
+  "recipient_id": 3,  # Field Officer ID
+  "content": "Thank you for the update. I will be available on Monday for the maintenance."
+}
+```
+
+---
+
+## 🔒 **PERMISSIONS & SECURITY**
+
+### **Role-Based Access Control**
+
+- **Owner**: Can communicate with Manager and Field Officer
+- **Manager**: Can communicate with Owner, Field Officer, and Farmer
+- **Field Officer**: Can communicate with Manager, Owner, and Farmer
+- **Farmer**: Can communicate with Field Officer
+- **Superuser/Admin**: Can communicate with anyone
+
+### **Security Features**
+
+- ✅ JWT Token Authentication required for all endpoints
+- ✅ Role-based communication rules enforced
+- ✅ Users can only access their own conversations and messages
+- ✅ Automatic conversation creation on first message
+- ✅ Read/unread status tracking
+- ✅ Unread message count per conversation
+
+---
+
+## 📊 **RESPONSE CODES**
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 OK | Request successful |
+| 201 Created | Message/conversation created successfully |
+| 400 Bad Request | Invalid request data |
+| 401 Unauthorized | Authentication required |
+| 403 Forbidden | Communication not allowed based on roles |
+| 404 Not Found | Conversation or message not found |
+
+---
+
+## 🚀 **USAGE EXAMPLES**
+
+### **Python Example**
+
+```python
+import requests
+
+# Base URL
+BASE_URL = "http://localhost:8000/api"
+TOKEN = "YOUR_ACCESS_TOKEN"
+
+headers = {
+    "Authorization": f"Bearer {TOKEN}",
+    "Content-Type": "application/json"
+}
+
+# Send a message
+def send_message(recipient_id, content):
+    url = f"{BASE_URL}/messages/"
+    data = {
+        "recipient_id": recipient_id,
+        "content": content
+    }
+    response = requests.post(url, json=data, headers=headers)
+    return response.json()
+
+# Get all conversations
+def get_conversations():
+    url = f"{BASE_URL}/conversations/"
+    response = requests.get(url, headers=headers)
+    return response.json()
+
+# Get messages in a conversation
+def get_messages(conversation_id):
+    url = f"{BASE_URL}/conversations/{conversation_id}/messages/"
+    response = requests.get(url, headers=headers)
+    return response.json()
+
+# Get unread count
+def get_unread_count():
+    url = f"{BASE_URL}/messages/unread-count/"
+    response = requests.get(url, headers=headers)
+    return response.json()
+```
+
+### **JavaScript/React Example**
+
+```javascript
+const API_BASE = 'http://localhost:8000/api';
+
+// Send a message
+const sendMessage = async (recipientId, content) => {
+  const response = await fetch(`${API_BASE}/messages/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      recipient_id: recipientId,
+      content: content
+    })
+  });
+  return await response.json();
+};
+
+// Get conversations
+const getConversations = async () => {
+  const response = await fetch(`${API_BASE}/conversations/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  return await response.json();
+};
+
+// Get unread count
+const getUnreadCount = async () => {
+  const response = await fetch(`${API_BASE}/messages/unread-count/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const data = await response.json();
+  return data.unread_count;
+};
+```
+
+---
+
+## 🎉 **FEATURES SUMMARY**
+
+✅ **Two-way communication** between all specified role pairs  
+✅ **Automatic conversation creation** when first message is sent  
+✅ **Read/unread status tracking** for all messages  
+✅ **Unread message count** per conversation and total  
+✅ **Role-based permissions** enforced automatically  
+✅ **RESTful API design** with standard HTTP methods  
+✅ **JWT authentication** for secure access  
+✅ **Real-time message updates** via conversation timestamps  
+✅ **Complete message history** per conversation  
+✅ **User-friendly error messages** for invalid communications  
+
+---
+
+## 📝 **NOTES**
+
+- Conversations are automatically created when the first message is sent
+- Messages are ordered chronologically (oldest first)
+- Conversations are ordered by last message time (most recent first)
+- Unread count only includes messages from the other participant
+- Users cannot mark their own messages as read
+- All timestamps are in ISO 8601 format (UTC)
+
+---
+
+**The Two-Way Communication System is fully implemented and ready for production use. All role-based communication rules are enforced automatically, ensuring secure and proper communication flow throughout the organizational hierarchy.**
 

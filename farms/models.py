@@ -88,6 +88,16 @@ class Plot(models.Model):
     country     = models.CharField(max_length=100, default='India', blank=True)
     pin_code    = models.CharField(max_length=6, blank=True)
 
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plots',
+        help_text="Industry this plot belongs to"
+    )
+    
     # Auto-assigned farmer (most recent farmer created by field officer)
     farmer      = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -236,6 +246,17 @@ class Plot(models.Model):
 
 class Farm(models.Model):
     farm_uid      = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='farms',
+        help_text="Industry this farm belongs to"
+    )
+    
     farm_owner    = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

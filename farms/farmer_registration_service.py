@@ -128,6 +128,13 @@ class CompleteFarmerRegistrationService:
         if User.objects.filter(email=farmer_data['email']).exists():
             raise serializers.ValidationError(f"Email '{farmer_data['email']}' already exists")
         
+        # Validate field officer has industry
+        if field_officer and not field_officer.industry:
+            raise serializers.ValidationError(
+                f'Field officer "{field_officer.username}" must be assigned to an industry before creating farmers. '
+                'Please contact administrator to assign an industry to this field officer account.'
+            )
+        
         # Get farmer role
         try:
             from users.models import Role
@@ -135,7 +142,7 @@ class CompleteFarmerRegistrationService:
         except Role.DoesNotExist:
             raise serializers.ValidationError("Farmer role not found in system")
         
-        # Create farmer
+        # Create farmer with industry assignment from field officer
         farmer = User.objects.create_user(
             username=farmer_data['username'],
             email=farmer_data['email'],
@@ -149,10 +156,15 @@ class CompleteFarmerRegistrationService:
             district=farmer_data.get('district', ''),
             taluka=farmer_data.get('taluka', ''),
             role=farmer_role,
-            created_by=field_officer  # Set the field officer as creator
+            created_by=field_officer,  # Set the field officer as creator
+            industry=field_officer.industry if field_officer else None  # Assign industry from field officer
         )
         
-        logger.info(f"Created farmer: {farmer.username} (ID: {farmer.id}) by {field_officer.email if field_officer else 'system'}")
+        logger.info(
+            f"Created farmer: {farmer.username} (ID: {farmer.id}) "
+            f"by {field_officer.email if field_officer else 'system'} "
+            f"in industry: {farmer.industry.name if farmer.industry else 'None'}"
+        )
         return farmer
     
     @staticmethod

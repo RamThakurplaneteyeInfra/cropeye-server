@@ -1,0 +1,31 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    {% if view_all_data_url %}
+    <div class="submit-row" style="background: #f8f9fa; border-top: 1px solid #dee2e6; padding: 10px;">
+        <a href="{{ view_all_data_url }}" class="button" style="background-color: #417690; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+            📊 View All Data for This Industry
+        </a>
+        <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">
+            Click to see all users, plots, farms, tasks, bookings, and inventory items for this industry.
+        </p>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block submit_buttons_top %}
+    {{ block.super }}
+    {% if view_all_data_url %}
+    <div class="submit-row" style="background: #f8f9fa; border-bottom: 1px solid #dee2e6; padding: 10px; margin-bottom: 20px;">
+        <a href="{{ view_all_data_url }}" class="button" style="background-color: #417690; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; display: inline-block; margin-right: 10px;">
+            📊 View All Data for This Industry
+        </a>
+        <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">
+            Click to see all users, plots, farms, tasks, bookings, and inventory items for this industry.
+        </p>
+    </div>
+    {% endif %}
+{% endblock %}
+

@@ -16,14 +16,18 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 # Allow Render URLs automatically + environment override
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*.onrender.com,localhost,127.0.0.1')
-ALLOWED_HOSTS = allowed_hosts_env.split(',')
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*.onrender.com,localhost,127.0.0.1,0.0.0.0,192.168.41.86')
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
 
 # Add common Render URL patterns if not already included
 render_patterns = ['*.onrender.com', 'cropeye-server-1.onrender.com']
 for pattern in render_patterns:
     if pattern not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(pattern)
+
+# Also allow all hosts in development if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -51,7 +55,7 @@ INSTALLED_APPS = [
     'inventory',
     'vendors',
     'farms',
-    # 'chatbotapi',  # Removed - causing deployment issues
+    'messaging',  # Two-way communication system
 ]
 
 MIDDLEWARE = [
@@ -133,6 +137,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
+
+# Custom authentication backend for phone number login
+AUTHENTICATION_BACKENDS = [
+    'users.backends.PhoneNumberBackend',  # Phone number authentication
+    'django.contrib.auth.backends.ModelBackend',  # Fallback to default
+]
 
 # REST Framework settings
 REST_FRAMEWORK = {

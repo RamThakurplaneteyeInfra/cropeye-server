@@ -65,14 +65,15 @@ class FarmAdmin(admin.ModelAdmin):
     list_display = (
         'farm_owner',
         'farm_uid',
+        'industry',
         'area_size',
         'soil_type',
         'crop_type',
         'get_created_by_email',
         'created_at',
     )
-    list_filter = ('soil_type', 'crop_type', 'created_at', 'created_by')
-    search_fields = ('farm_owner__username', 'farm_uid', 'address', 'created_by__email')
+    list_filter = ('industry', 'soil_type', 'crop_type', 'created_at', 'created_by')
+    search_fields = ('farm_owner__username', 'farm_uid', 'address', 'created_by__email', 'industry__name')
     readonly_fields = ('farm_uid', 'created_at', 'updated_at')
 
     inlines = [
@@ -86,6 +87,7 @@ class FarmAdmin(admin.ModelAdmin):
             'fields': (
                 'farm_owner',
                 'plot',
+                'industry',
                 'address',
                 'area_size',
                 'soil_type',
@@ -98,6 +100,20 @@ class FarmAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'industry') and request.user.industry:
+            return qs.filter(industry=request.user.industry)
+        return qs.none()
+    
+    def save_model(self, request, obj, form, change):
+        if not change and hasattr(obj, 'industry') and not obj.industry:
+            if hasattr(request.user, 'industry') and request.user.industry:
+                obj.industry = request.user.industry
+        super().save_model(request, obj, form, change)
     
     def get_created_by_email(self, obj):
         """Display the email of the user who created this farm"""
@@ -113,6 +129,7 @@ class PlotAdmin(LeafletGeoAdmin):
     list_display = (
         'gat_number',
         'plot_number',
+        'industry',
         'village',
         'taluka',
         'district',
@@ -120,14 +137,15 @@ class PlotAdmin(LeafletGeoAdmin):
         'country',
         'get_created_by_email',
     )
-    list_filter = ('village', 'taluka', 'district', 'state', 'country', 'created_by')
-    search_fields = ('gat_number', 'plot_number', 'created_by__email')
+    list_filter = ('industry', 'village', 'taluka', 'district', 'state', 'country', 'created_by')
+    search_fields = ('gat_number', 'plot_number', 'created_by__email', 'industry__name')
 
     fieldsets = (
         (None, {
             'fields': (
                 'gat_number',
                 'plot_number',
+                'industry',
                 'village',
                 'taluka',
                 'district',
@@ -142,6 +160,20 @@ class PlotAdmin(LeafletGeoAdmin):
             'classes': ('collapse',),
         }),
     )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'industry') and request.user.industry:
+            return qs.filter(industry=request.user.industry)
+        return qs.none()
+    
+    def save_model(self, request, obj, form, change):
+        if not change and hasattr(obj, 'industry') and not obj.industry:
+            if hasattr(request.user, 'industry') and request.user.industry:
+                obj.industry = request.user.industry
+        super().save_model(request, obj, form, change)
     
     def get_created_by_email(self, obj):
         """Display the email of the user who created this plot"""

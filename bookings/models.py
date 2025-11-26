@@ -13,6 +13,7 @@ class Booking(models.Model):
     ]
     
     STATUS_CHOICES = [
+        ('available', 'Available'),
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
@@ -20,12 +21,32 @@ class Booking(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='bookings',
+        help_text="Industry this booking belongs to"
+    )
+    
     title = models.CharField(max_length=200)
+    item_name = models.CharField(max_length=200, blank=True, verbose_name="Item Name", help_text="Name of the item being booked")
     description = models.TextField(blank=True)
-    booking_type = models.CharField(max_length=20, choices=BOOKING_TYPES)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField()
+    booking_type = models.CharField(max_length=20, choices=BOOKING_TYPES, blank=True, null=True)
+    user_role = models.ForeignKey(
+        'users.Role',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
+        verbose_name="User Role",
+        help_text="Role assigned to this booking"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
+    start_date = models.DateTimeField(verbose_name="Start Date")
+    end_date = models.DateTimeField(verbose_name="End Date")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_bookings')
     approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_bookings')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -41,15 +62,29 @@ class Booking(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.title} - {self.get_booking_type_display()}"
+        display_name = self.item_name or self.title
+        return f"{display_name} - {self.get_status_display()}"
 
     def clean(self):
-        if self.start_date and self.end_date:
-            if self.end_date <= self.start_date:
+        # Handle both DateField and DateTimeField for backward compatibility
+        start = self.start_date
+        end = self.end_date
+        
+        if start and end:
+            # Convert DateTimeField to date if needed
+            if hasattr(start, 'date'):
+                start = start.date()
+            if hasattr(end, 'date'):
+                end = end.date()
+                
+            if end <= start:
                 raise ValidationError('End date must be after start date')
             
-            if self.start_date < timezone.now():
-                raise ValidationError('Start date cannot be in the past')
+            # Only validate past dates if both dates are set and we're not in admin add form
+            # Allow past dates for historical bookings or rescheduling
+            # Remove this validation or make it optional based on your business logic
+            # if self.start_date < timezone.now():
+            #     raise ValidationError('Start date cannot be in the past')
 
     def save(self, *args, **kwargs):
         self.full_clean()

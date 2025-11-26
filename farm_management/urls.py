@@ -10,6 +10,21 @@ from rest_framework import permissions
 def health_check(request):
     return JsonResponse({"status": "healthy", "service": "farm-management-api"})
 
+def root_view(request):
+    """Root URL handler - redirects to API docs or returns API info"""
+    return JsonResponse({
+        "message": "Farm Management API",
+        "version": "1.0",
+        "endpoints": {
+            "health": "/api/health/",
+            "api_docs": "/swagger/",
+            "admin": "/admin/",
+            "users": "/api/users/",
+            "messaging": "/api/conversations/",
+            "farms": "/api/farms/",
+        }
+    })
+
 schema_view = get_schema_view(
     openapi.Info(
         title="Farm Management API",
@@ -24,6 +39,7 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    path('', root_view, name='root'),
     path('admin/', admin.site.urls),
     
     # Health check endpoint
@@ -37,7 +53,8 @@ urlpatterns = [
     path('api/', include('inventory.urls')),
     path('api/', include('vendors.urls')),
     path('api/', include('farms.urls')),
-    # path('api/', include('chatbotapi.urls')),  # Removed chatbot functionality
+    path('api/', include('messaging.urls')),  # Messaging system
+    path('api/', include('chatbot.urls')),
     path('api/tasks/', include('tasks.urls')),
 
     # API Documentation

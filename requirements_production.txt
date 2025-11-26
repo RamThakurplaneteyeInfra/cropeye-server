@@ -53,8 +53,5 @@ sentry-sdk==1.40.0
 # Security
 django-ratelimit==4.1.0
 
-# AI/LLM dependencies
-# llama-cpp-python==0.2.20  # Removed - chatbot functionality disabled
-
 # Performance
 django-debug-toolbar==4.2.0  # Only for development

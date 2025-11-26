@@ -8,6 +8,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from users.multi_tenant_utils import filter_by_industry, get_user_industry
 from .models import (
     SoilType,
     CropType,
@@ -102,6 +103,9 @@ class FarmViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
 
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+
         # filter by owner id
         if owner_id := self.request.query_params.get('owner'):
             if owner_id.isdigit():
@@ -133,10 +137,6 @@ class FarmViewSet(viewsets.ModelViewSet):
                 Q(address__icontains=search) | Q(farm_owner__username__icontains=search)
             )
 
-        # field officer sees farms they created
-        if user.has_role('fieldofficer'):
-            qs = qs.filter(created_by=user)
-
         return qs
 
     def perform_create(self, serializer):
@@ -147,7 +147,9 @@ class FarmViewSet(viewsets.ModelViewSet):
         if user.has_role('fieldofficer') and not data.get('farm_owner'):
             raise ValidationError("Field Officer must assign a farm_owner.")
 
-        serializer.save(created_by=user)
+        # Assign industry from user
+        user_industry = get_user_industry(user)
+        serializer.save(created_by=user, industry=user_industry)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -945,6 +947,9 @@ class PlotViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
 
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+
         if self.request.query_params.get('my_farms') == 'true':
             qs = qs.filter(farms__farm_owner=user)
 
@@ -955,18 +960,17 @@ class PlotViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('has_boundary') == 'true':
             qs = qs.filter(boundary__isnull=False)
 
-        if user.has_role('fieldofficer'):
-            qs = qs.filter(farms__created_by=user)
-
         return qs
 
     def perform_create(self, serializer):
         user = self.request.user
+        # Get user's industry
+        user_industry = get_user_industry(user)
         # Set created_by for field officers or admin
         if user.has_any_role(['fieldofficer', 'admin', 'manager']):
-            serializer.save(created_by=user)
+            serializer.save(created_by=user, industry=user_industry)
         else:
-            serializer.save()
+            serializer.save(industry=user_industry)
 
     def perform_update(self, serializer):
         serializer.save()

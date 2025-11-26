@@ -16,6 +16,16 @@ class Task(models.Model):
         ('urgent', 'Urgent'),
     )
 
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='tasks',
+        help_text="Industry this task belongs to"
+    )
+    
     title = models.CharField(max_length=200)
     description = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

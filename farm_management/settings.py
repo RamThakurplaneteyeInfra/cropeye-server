@@ -23,7 +23,12 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+# ALLOWED_HOSTS - explicitly include localhost and common IPs for development
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,192.168.41.86')
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+# Also allow all hosts in development if DEBUG is True
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -52,7 +57,8 @@ INSTALLED_APPS = [
     'inventory',
     'vendors',
     'farms',
-    # 'chatbotapi',  # Removed - causing migration issues
+    'messaging',  # Two-way communication system
+    'chatbot',
 ]
 
 MIDDLEWARE = [
@@ -60,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'users.middleware.JSONExceptionMiddleware',  # Catch exceptions early for API requests
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -134,6 +141,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# Custom authentication backend for phone number login
+AUTHENTICATION_BACKENDS = [
+    'users.backends.PhoneNumberBackend',  # Phone number authentication
+    'django.contrib.auth.backends.ModelBackend',  # Fallback to default
+]
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -144,6 +157,16 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'EXCEPTION_HANDLER': 'users.exception_handler.custom_exception_handler',
 }
 
 # JWT settings
@@ -159,9 +182,11 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS settings
+# CORS settings - Allow all origins for development
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# Note: When CORS_ALLOW_ALL_ORIGINS is True, CORS_ALLOW_CREDENTIALS must be False
+# Browsers don't allow credentials with wildcard origins
+CORS_ALLOW_CREDENTIALS = False
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
