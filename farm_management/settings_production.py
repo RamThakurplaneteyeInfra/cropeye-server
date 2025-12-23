@@ -15,19 +15,40 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-# ALLOWED_HOSTS - Allow all hosts for local network access (same WiFi)
-# For production, set ALLOWED_HOSTS environment variable with specific domains
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
-if allowed_hosts_env == '*':
-    ALLOWED_HOSTS = ['*']  # Allow all hosts for local network access
+# ALLOWED_HOSTS - Configure allowed hosts for production
+# For Render deployment, always include Render service domains
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '')
+
+if allowed_hosts_env == '*' or not allowed_hosts_env:
+    # If '*' or empty, allow all hosts (for development/flexibility)
+    ALLOWED_HOSTS = ['*']
 else:
+    # Parse comma-separated list
     ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
-    # Add common Render URL patterns if not already included (for production)
-    if not DEBUG:
-        render_patterns = ['*.onrender.com', 'cropeye-server-1.onrender.com']
-        for pattern in render_patterns:
-            if pattern not in ALLOWED_HOSTS:
-                ALLOWED_HOSTS.append(pattern)
+    
+    # Remove wildcard patterns (Django doesn't support them directly)
+    ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if not h.startswith('*')]
+
+# Always add Render service domains (required for Render deployment)
+# These are added to ensure Render deployment works even if env var is misconfigured
+render_domains = [
+    'cropeye-server-1.onrender.com',  # Your Render service domain
+    'cropeye-server.onrender.com',
+    'farm-management-web.onrender.com',
+]
+
+# Add Render domains if not already present
+# Note: If ALLOWED_HOSTS is ['*'], these aren't needed but adding them doesn't hurt
+for domain in render_domains:
+    if domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(domain)
+
+# Also add localhost for health checks (unless ALLOWED_HOSTS is '*')
+if ALLOWED_HOSTS != ['*']:
+    if 'localhost' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('localhost')
+    if '127.0.0.1' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('127.0.0.1')
 
 # Application definition
 INSTALLED_APPS = [

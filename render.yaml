@@ -58,7 +58,7 @@ services:
           name: farm-management-redis
           property: connectionString
       - key: ALLOWED_HOSTS
-        value: "*.onrender.com,localhost,127.0.0.1"
+        value: "cropeye-server-1.onrender.com,cropeye-server.onrender.com,farm-management-web.onrender.com,localhost,127.0.0.1"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://*.onrender.com,http://localhost:3000"
       - key: EMAIL_HOST
