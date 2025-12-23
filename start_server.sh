@@ -12,6 +12,8 @@ until nc -z -v -w30 "${DB_HOST}" "${DB_PORT:-5432}"; do
 done
 
 echo '✅ Database is up and running!'
+echo '🔧 Fixing phone number issues before migrations...'
+python fix_phone_before_migrations.py || echo '⚠️  Phone fix script failed, continuing...'
 echo '📊 Applying database migrations...'
 python manage.py migrate --noinput
 
