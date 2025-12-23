@@ -1127,15 +1127,18 @@ POST /soil-types/
 
 ---
 
-   2. Crop Types 
+   1. Crop Types 🌾
 
 ```bash
-GET /crop-types/
-POST /crop-types/
+GET    /crop-types/          # 👁️ View/List all crop types
+POST   /crop-types/          # ➕ Add new crop type
+GET    /crop-types/{id}/     # 👁️ View specific crop type
+PUT    /crop-types/{id}/     # ✏️ Edit crop type
+PATCH  /crop-types/{id}/     # ✏️ Partial update crop type
+DELETE /crop-types/{id}/     # ❌ Delete crop type
 ```
 
- POST body: 
-
+**POST Body (Create Crop Type):**
 ```json
 {
   "crop_type": "Wheat",
@@ -1144,9 +1147,153 @@ POST /crop-types/
 }
 ```
 
+**Response (GET/POST):**
+```json
+{
+  "id": 1,
+  "crop_type": "Wheat",
+  "plantation_type": "Rabi",
+  "planting_method": "Broadcast"
+}
+```
+
+**Permissions:**
+* 👁️ View: Authenticated users
+* ➕ Create/✏️ Edit/❌ Delete: Admin users only
+
 ---
 
-   3. Farms ✨ (AUTO-ASSIGNMENT ENABLED)
+   2. Plantation Types 🌳
+
+```bash
+GET    /plantation-types/          # 👁️ View/List all plantation types
+POST   /plantation-types/          # ➕ Add new plantation type
+GET    /plantation-types/{id}/     # 👁️ View specific plantation type
+PUT    /plantation-types/{id}/     # ✏️ Edit plantation type
+PATCH  /plantation-types/{id}/     # ✏️ Partial update plantation type
+DELETE /plantation-types/{id}/     # ❌ Delete plantation type
+```
+
+**Query Parameters for GET:**
+* `plantation_type_id` - Filter by plantation type ID
+* `active_only=true` - Show only active plantation types
+* `crop_type_id` - Filter by crop type
+* `industry_id` - Filter by industry
+
+**POST Body (Create Plantation Type):**
+```json
+{
+  "crop_type_id": 1,
+  "name": "Adsali",
+  "code": "adsali",
+  "description": "Long-duration sugarcane plantation type",
+  "is_active": true
+}
+```
+
+**Response (GET/POST):**
+```json
+{
+  "id": 1,
+  "industry": 1,
+  "industry_name": "Sugarcane Industry",
+  "crop_type": {
+    "id": 1,
+    "crop_type": "Sugarcane"
+  },
+  "name": "Adsali",
+  "code": "adsali",
+  "description": "Long-duration sugarcane plantation type",
+  "is_active": true,
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Plantation Type Features:**
+* 💧 Drip Plantation
+* 🌊 Flood Plantation
+* 💨 Sprinkler Plantation
+* 🏞️ Basin Plantation
+
+**Permissions:**
+* 👁️ View: Authenticated users
+* ➕ Create/✏️ Edit/❌ Delete: Admin users only
+
+---
+
+   3. Planting Methods 🌱
+
+```bash
+GET    /planting-methods/          # 👁️ View/List all planting methods
+POST   /planting-methods/          # ➕ Add new planting method
+GET    /planting-methods/{id}/     # 👁️ View specific planting method
+PUT    /planting-methods/{id}/     # ✏️ Edit planting method
+PATCH  /planting-methods/{id}/     # ✏️ Partial update planting method
+DELETE /planting-methods/{id}/     # ❌ Delete planting method
+```
+
+**Query Parameters for GET:**
+* `plantation_type_id` - Filter by plantation type (parent)
+* `active_only=true` - Show only active planting methods
+* `industry_id` - Filter by industry
+
+**POST Body (Create Planting Method):**
+```json
+{
+  "plantation_type_id": 1,
+  "name": "3 Bud Method",
+  "code": "3_bud",
+  "description": "Planting method using 3 buds per set",
+  "is_active": true
+}
+```
+
+**Response (GET/POST):**
+```json
+{
+  "id": 1,
+  "industry": 1,
+  "industry_name": "Sugarcane Industry",
+  "plantation_type": {
+    "id": 1,
+    "name": "Adsali",
+    "code": "adsali"
+  },
+  "name": "3 Bud Method",
+  "code": "3_bud",
+  "description": "Planting method using 3 buds per set",
+  "is_active": true,
+  "created_at": "2024-01-15T10:35:00Z",
+  "updated_at": "2024-01-15T10:35:00Z"
+}
+```
+
+**Planting Method Features:**
+* 🌱 Direct Seeding
+* 🌿 Transplanting
+* 🚜 Sowing by Machine
+* 👨‍🌾 Manual Sowing
+
+**Hierarchical Relationship:**
+```
+Crop Type
+  └── Plantation Type (Parent)
+      └── Planting Method (Child)
+```
+
+**Example: Get Planting Methods for a Specific Plantation Type:**
+```bash
+GET /planting-methods/?plantation_type_id=1
+```
+
+**Permissions:**
+* 👁️ View: Authenticated users
+* ➕ Create/✏️ Edit/❌ Delete: Admin users only
+
+---
+
+   4. Farms ✨ (AUTO-ASSIGNMENT ENABLED)
 
 ```bash
 GET /farms/
@@ -1241,7 +1388,7 @@ POST /farms/
 
 ---
 
-   4. Farm GeoJSON 
+   5. Farm GeoJSON 
 
 ```bash
 GET /farms/geojson/
@@ -1251,7 +1398,7 @@ Supports same filters as `/farms/`.
 
 ---
 
-   5. Plots ✨ (AUTO-ASSIGNMENT ENABLED)
+   6. Plots ✨ (AUTO-ASSIGNMENT ENABLED)
 
 ```bash
 GET /plots/
@@ -1351,7 +1498,7 @@ POST /plots/
 
 ---
 
-   6. Plot GeoJSON 
+   7. Plot GeoJSON 
 
 ```bash
 GET /plots/geojson/
@@ -1361,7 +1508,7 @@ Supports same filters as `/plots/`.
 
 ---
 
-   7. Farm Images 
+   8. Farm Images 
 
 ```bash
 GET /farm-images/
@@ -1389,7 +1536,7 @@ curl -X POST http://localhost:8000/farm-images/ \
 
 ---
 
-   8. Farm Sensors 
+   9. Farm Sensors 
 
 ```bash
 GET /farm-sensors/
@@ -1419,7 +1566,7 @@ POST /farm-sensors/
 
 ---
 
-   9. Farm Irrigation 
+   10. Farm Irrigation 
 
 ```bash
 GET /farm-irrigations/
@@ -3506,7 +3653,7 @@ def get_unread_count():
 ```
 
 ### **JavaScript/React Example**
-
+`1  qAzA
 ```javascript
 const API_BASE = 'http://localhost:8000/api';
 

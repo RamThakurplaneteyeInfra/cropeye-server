@@ -15,19 +15,19 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-# Allow Render URLs automatically + environment override
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*.onrender.com,localhost,127.0.0.1,0.0.0.0,192.168.41.86')
-ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
-
-# Add common Render URL patterns if not already included
-render_patterns = ['*.onrender.com', 'cropeye-server-1.onrender.com']
-for pattern in render_patterns:
-    if pattern not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(pattern)
-
-# Also allow all hosts in development if DEBUG is True
-if DEBUG:
-    ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS - Allow all hosts for local network access (same WiFi)
+# For production, set ALLOWED_HOSTS environment variable with specific domains
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
+if allowed_hosts_env == '*':
+    ALLOWED_HOSTS = ['*']  # Allow all hosts for local network access
+else:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+    # Add common Render URL patterns if not already included (for production)
+    if not DEBUG:
+        render_patterns = ['*.onrender.com', 'cropeye-server-1.onrender.com']
+        for pattern in render_patterns:
+            if pattern not in ALLOWED_HOSTS:
+                ALLOWED_HOSTS.append(pattern)
 
 # Application definition
 INSTALLED_APPS = [
@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     'vendors',
     'farms',
     'messaging',  # Two-way communication system
+    'chatbot',
+    'industries',
 ]
 
 MIDDLEWARE = [

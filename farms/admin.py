@@ -1,9 +1,12 @@
 from django.contrib import admin
 from leaflet.admin import LeafletGeoAdmin
+from users.admin import IndustryFilteredAdmin
 
 from .models import (
     SoilType,
     CropType,
+    PlantationType,
+    PlantingMethod,
     IrrigationType,
     SensorType,
     Plot,
@@ -20,10 +23,80 @@ class SoilTypeAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
 
 
+# Inline for PlantingMethod (child of PlantationType)
+class PlantingMethodInline(admin.TabularInline):
+    model = PlantingMethod
+    extra = 0
+    fields = ('name', 'code', 'description', 'is_active')
+    show_change_link = True
+
+
+# Inline for PlantationType (child of CropType)
+class PlantationTypeInline(admin.TabularInline):
+    model = PlantationType
+    extra = 0
+    fields = ('name', 'code', 'description', 'is_active')
+    show_change_link = True
+
+
 @admin.register(CropType)
 class CropTypeAdmin(admin.ModelAdmin):
     list_display = ('crop_type', 'plantation_type', 'planting_method')
+    list_filter = ('plantation_type', 'planting_method')
     search_fields = ('crop_type',)
+    change_form_template = 'admin/farms/croptype/change_form.html'
+    inlines = [PlantationTypeInline]
+    # Note: plantation_type and planting_method are CharField until migration 0006 is applied
+    # After migration, they will be ForeignKey and Django's native popup icons will appear
+    
+    fieldsets = (
+        (None, {
+            'fields': ('crop_type', 'plantation_type', 'planting_method')
+        }),
+    )
+
+
+@admin.register(PlantationType)
+class PlantationTypeAdmin(IndustryFilteredAdmin):
+    list_display = ('name', 'crop_type', 'code', 'industry', 'is_active', 'created_at')
+    list_filter = ('crop_type', 'industry', 'is_active', 'created_at')
+    search_fields = ('name', 'code', 'description', 'crop_type__crop_type')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [PlantingMethodInline]
+    change_form_template = 'admin/farms/plantationtype/change_form.html'
+    # Django's native popup icons appear automatically for ForeignKey fields
+    # No need for autocomplete_fields - Django will show popup icons by default
+    
+    fieldsets = (
+        (None, {
+            'fields': ('crop_type', 'industry', 'name', 'code', 'description', 'is_active')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+
+@admin.register(PlantingMethod)
+class PlantingMethodAdmin(IndustryFilteredAdmin):
+    list_display = ('name', 'plantation_type', 'code', 'industry', 'is_active', 'created_at')
+    list_filter = ('plantation_type', 'industry', 'is_active', 'created_at')
+    search_fields = ('name', 'code', 'description', 'plantation_type__name')
+    readonly_fields = ('created_at', 'updated_at')
+    change_form_template = 'admin/farms/plantingmethod/change_form.html'
+    # Django's native popup icons appear automatically for ForeignKey fields
+    # No need for autocomplete_fields - Django will show popup icons by default
+    
+    fieldsets = (
+        (None, {
+            'fields': ('plantation_type', 'industry', 'name', 'code', 'description', 'is_active')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
 
 
 @admin.register(IrrigationType)

@@ -36,38 +36,50 @@ class LoginView(APIView):
             logger.info(f"Content-Type: {getattr(request, 'content_type', 'unknown')}")
             logger.info(f"Request method: {request.method}")
             logger.info(f"Has request.data: {hasattr(request, 'data')}")
-            try:
-                body_length = len(request.body) if request.body else 0
-            except (AttributeError, TypeError):
-                body_length = 0
-            logger.info(f"Request body length: {body_length}")
         except Exception as log_error:
             # Don't let logging errors break the request
             logger.warning(f"Error in logging: {log_error}")
         
-        # Try to get data from request.data (REST Framework parsed)
-        # If that fails, try to parse JSON manually
+        # Try to get data from request.data (REST Framework parsed) FIRST
+        # This is the preferred method and doesn't require accessing request.body
+        body_content = None
+        body_length = 0
+        
         try:
-            # First try REST Framework's parsed data
+            # First try REST Framework's parsed data (this is the primary method)
             if hasattr(request, 'data') and request.data:
                 logger.info(f"Using request.data: {list(request.data.keys())}")
                 # Support both snake_case and camelCase for phone_number
                 phone_number = request.data.get('phone_number') or request.data.get('phoneNumber')
                 password = request.data.get('password')
             else:
-                # Fallback: try to parse JSON from request.body
+                # Only if request.data is not available, try to read body
+                # But be very careful - only read once
                 try:
-                    if request.body:
-                        body_data = json.loads(request.body.decode('utf-8'))
+                    # Check if we can access body without reading it
+                    if hasattr(request, '_body'):
+                        # Body already read, use it
+                        body_content = request._body
+                    elif hasattr(request, 'body'):
+                        # Try to read body once
+                        try:
+                            body_content = request.body
+                            body_length = len(body_content) if body_content else 0
+                        except Exception:
+                            # Body already consumed, can't read again
+                            body_content = None
+                    
+                    if body_content:
+                        body_data = json.loads(body_content.decode('utf-8'))
                         logger.info(f"Parsed JSON body: {list(body_data.keys()) if isinstance(body_data, dict) else 'not a dict'}")
                         # Support both snake_case and camelCase
                         phone_number = body_data.get('phone_number') or body_data.get('phoneNumber')
                         password = body_data.get('password')
                     else:
-                        logger.warning("Request body is empty")
+                        logger.warning("Request body is empty or already consumed")
                         phone_number = None
                         password = None
-                except (json.JSONDecodeError, UnicodeDecodeError, AttributeError) as e:
+                except (json.JSONDecodeError, UnicodeDecodeError, AttributeError, TypeError) as e:
                     logger.warning(f"JSON parsing failed: {str(e)}")
                     # If JSON parsing fails, try form data
                     phone_number = request.POST.get('phone_number') or request.POST.get('phoneNumber') if hasattr(request, 'POST') else None
@@ -78,31 +90,27 @@ class LoginView(APIView):
                 'detail': 'Invalid request format. Please send JSON with phone_number and password.',
                 'error_code': 'INVALID_FORMAT',
                 'hint': 'Ensure Content-Type header is set to application/json and body is valid JSON. Send: {"phone_number": "1234567890", "password": "your_password"}',
-                'received_content_type': request.content_type,
-                'has_body': bool(request.body)
+                'received_content_type': getattr(request, 'content_type', 'unknown'),
+                'has_data': hasattr(request, 'data') and bool(request.data)
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if data is being sent
         if not phone_number and not password:
             logger.warning("Login request with empty or missing data")
-            # Safe body preview
-            try:
-                body_preview = request.body.decode('utf-8')[:200] if request.body else 'empty'
-            except (UnicodeDecodeError, AttributeError, TypeError) as e:
-                body_preview = f'Unable to decode body: {str(e)}'
-            logger.warning(f"Request body: {body_preview}")
             
-            # Safe body preview for response
-            try:
-                response_body_preview = request.body.decode('utf-8')[:100] if request.body else None
-            except (UnicodeDecodeError, AttributeError, TypeError):
-                response_body_preview = None
+            # Safe body preview for response (only if we have it)
+            response_body_preview = None
+            if body_content:
+                try:
+                    response_body_preview = body_content.decode('utf-8')[:100]
+                except (UnicodeDecodeError, AttributeError, TypeError):
+                    pass
             
             return Response({
                 'detail': 'Request body is required. Please send JSON with phone_number and password.',
                 'error_code': 'EMPTY_BODY',
                 'hint': 'Send: {"phone_number": "1234567890", "password": "your_password"}',
-                'content_type': request.content_type,
+                'content_type': getattr(request, 'content_type', 'unknown'),
                 'body_preview': response_body_preview
             }, status=status.HTTP_400_BAD_REQUEST)
         

@@ -7,6 +7,8 @@ import json
 from .models import (
     SoilType,
     CropType,
+    PlantationType,
+    PlantingMethod,
     Farm,
     Plot,
     FarmImage,
@@ -30,10 +32,77 @@ class SoilTypeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'properties']
 
 
+class PlantationTypeSerializer(serializers.ModelSerializer):
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
+    crop_type_id = serializers.PrimaryKeyRelatedField(
+        source='crop_type',
+        queryset=CropType.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = PlantationType
+        fields = ['id', 'industry', 'industry_name', 'crop_type', 'crop_type_id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'crop_type']
+
+
+class PlantingMethodSerializer(serializers.ModelSerializer):
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
+    plantation_type_id = serializers.PrimaryKeyRelatedField(
+        source='plantation_type',
+        queryset=PlantationType.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = PlantingMethod
+        fields = ['id', 'industry', 'industry_name', 'plantation_type', 'plantation_type_id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'plantation_type']
+
+
 class CropTypeSerializer(serializers.ModelSerializer):
+    # Include detailed plantation type and planting method data (nested)
+    # Use simplified serializers to avoid circular references
+    plantation_type = serializers.SerializerMethodField()
+    planting_method = serializers.SerializerMethodField()
+    plantation_date = serializers.SerializerMethodField()
+    
     class Meta:
         model = CropType
-        fields = ['id', 'crop_type', 'plantation_type', 'planting_method']
+        fields = ['id', 'crop_type', 'plantation_type', 'planting_method', 'plantation_date']
+    
+    def get_plantation_type(self, obj):
+        if obj.plantation_type:
+            return {
+                'id': obj.plantation_type.id,
+                'name': obj.plantation_type.name,
+                'code': obj.plantation_type.code,
+                'description': obj.plantation_type.description,
+                'is_active': obj.plantation_type.is_active
+            }
+        return None
+    
+    def get_planting_method(self, obj):
+        if obj.planting_method:
+            return {
+                'id': obj.planting_method.id,
+                'name': obj.planting_method.name,
+                'code': obj.planting_method.code,
+                'description': obj.planting_method.description,
+                'is_active': obj.planting_method.is_active
+            }
+        return None
+    
+    def get_plantation_date(self, obj):
+        # Get plantation_date from the parent Farm instance passed through context
+        farm = self.context.get('farm')
+        if farm and hasattr(farm, 'plantation_date'):
+            return farm.plantation_date.isoformat() if farm.plantation_date else None
+        return None
 
 
 class PlotSerializer(serializers.ModelSerializer):
@@ -324,6 +393,18 @@ class FarmWithIrrigationSerializer(serializers.ModelSerializer):
                 )
         
         return farm
+    
+    def to_representation(self, instance):
+        # Override to pass farm instance to CropTypeSerializer
+        representation = super().to_representation(instance)
+        if 'crop_type' in representation and instance.crop_type:
+            # Pass farm instance to crop_type serializer context
+            crop_type_serializer = CropTypeSerializer(
+                instance.crop_type,
+                context={'farm': instance, **self.context}
+            )
+            representation['crop_type'] = crop_type_serializer.data
+        return representation
 
 class FarmSerializer(serializers.ModelSerializer):
     farm_owner = UserSerializer(read_only=True)
@@ -417,6 +498,18 @@ class FarmSerializer(serializers.ModelSerializer):
         validated_data.setdefault('farm_owner', user)
         # created_by will be set in the view perform_create
         return super().create(validated_data)
+    
+    def to_representation(self, instance):
+        # Override to pass farm instance to CropTypeSerializer
+        representation = super().to_representation(instance)
+        if 'crop_type' in representation and instance.crop_type:
+            # Pass farm instance to crop_type serializer context
+            crop_type_serializer = CropTypeSerializer(
+                instance.crop_type,
+                context={'farm': instance, **self.context}
+            )
+            representation['crop_type'] = crop_type_serializer.data
+        return representation
 
 
 class FarmDetailSerializer(FarmSerializer):

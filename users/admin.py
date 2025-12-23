@@ -133,6 +133,15 @@ try:
             field_officers = User.objects.filter(industry=industry, role__name='fieldofficer').select_related('role', 'industry')
             farmers = User.objects.filter(industry=industry, role__name='farmer').select_related('role', 'industry')
             
+            # Calculate counts
+            owners_count = owners.count()
+            managers_count = managers.count()
+            field_officers_count = field_officers.count()
+            farmers_count = farmers.count()
+            
+            # Calculate total user count
+            total_users_count = owners_count + managers_count + field_officers_count + farmers_count
+            
             # Get all data in this industry
             context = {
                 'industry': industry,
@@ -140,10 +149,11 @@ try:
                 'managers': managers,
                 'field_officers': field_officers,
                 'farmers': farmers,
-                'owners_count': owners.count(),
-                'managers_count': managers.count(),
-                'field_officers_count': field_officers.count(),
-                'farmers_count': farmers.count(),
+                'owners_count': owners_count,
+                'managers_count': managers_count,
+                'field_officers_count': field_officers_count,
+                'farmers_count': farmers_count,
+                'total_users_count': total_users_count,
             }
             
             # Try to get plots and farms
@@ -192,6 +202,45 @@ try:
             except ImportError:
                 context['inventory_items'] = []
                 context['inventory_items_count'] = 0
+            
+            # Try to get vendors (filter by created_by's industry)
+            try:
+                from vendors.models import Vendor
+                vendors = Vendor.objects.filter(created_by__industry=industry).select_related('created_by')
+                context['vendors'] = vendors
+                context['vendors_count'] = vendors.count()
+            except ImportError:
+                context['vendors'] = []
+                context['vendors_count'] = 0
+            
+            # Try to get stock items (Stock model from inventory)
+            try:
+                from inventory.models import Stock
+                stock_items = Stock.objects.filter(industry=industry).select_related('created_by', 'industry')
+                stock_items_count = stock_items.count()
+                # Always set stock_items - use queryset directly (Django templates handle querysets)
+                context['stock_items'] = stock_items
+                context['stock_items_count'] = stock_items_count
+                print(f"DEBUG: Stock items for industry {industry.id}: {stock_items_count} items")
+            except Exception as e:
+                # If Stock model doesn't exist or any error occurs, set empty
+                # Log the error for debugging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error loading stock items for industry {industry.id}: {str(e)}")
+                print(f"DEBUG: Error loading stock items: {str(e)}")
+                context['stock_items'] = []
+                context['stock_items_count'] = 0
+            
+            # Try to get orders (filter by created_by's industry)
+            try:
+                from vendors.models import Order
+                orders = Order.objects.filter(created_by__industry=industry).select_related('vendor', 'created_by')
+                context['orders'] = orders
+                context['orders_count'] = orders.count()
+            except ImportError:
+                context['orders'] = []
+                context['orders_count'] = 0
             
             # Add admin context
             context.update({

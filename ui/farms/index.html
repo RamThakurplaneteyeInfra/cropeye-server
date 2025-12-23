@@ -263,6 +263,30 @@
                         
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="plantation-type">Plantation Type</label>
+                                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                    <select id="plantation-type" name="plantation_type" style="flex: 1;">
+                                        <option value="">Select Plantation Type</option>
+                                        <!-- Will be populated dynamically -->
+                                    </select>
+                                    <button type="button" id="add-plantation-type-btn" class="btn primary-btn" style="padding: 10px 15px; min-width: 45px; font-size: 18px; font-weight: bold; line-height: 1;" title="Add New Plantation Type">+</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="planting-method">Planting Method</label>
+                                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                                    <select id="planting-method" name="planting_method" style="flex: 1;">
+                                        <option value="">Select Planting Method</option>
+                                        <!-- Will be populated dynamically -->
+                                    </select>
+                                    <button type="button" id="add-planting-method-btn" class="btn primary-btn" style="padding: 10px 15px; min-width: 45px; font-size: 18px; font-weight: bold; line-height: 1;" title="Add New Planting Method">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="spacing-a">Spacing A (meters)*</label>
                                 <input type="number" id="spacing-a" name="spacing_a" min="0.01" step="0.01" required>
                                 <small class="help-text">Distance between rows</small>

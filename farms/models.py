@@ -15,26 +15,122 @@ class SoilType(models.Model):
         return self.name
 
 
-class CropType(models.Model):
-    PLANTATION_TYPE_CHOICES = [
-        ('adsali',         'Adsali'),
-        ('suru',           'Suru'),
-        ('ratoon',         'Ratoon'),
-        ('pre-seasonal',   'Pre-Seasonal'),
-        ('post-seasonal',  'Post-Seasonal'),
-        ('other',          'Other'),
-    ]
-    PLANTATION_METHOD_CHOICES = [
-        ('3_bud',           '3 Bud Method'),
-        ('2_bud',           '2 Bud Method'),
-        ('1_bud',           '1 Bud Method'),
-        ('1_bud_stip_Method','1 Bud (stip Method)'),
-        ('other',           'Other'),
-    ]
+class PlantationType(models.Model):
+    """
+    Industry-specific plantation types (e.g., Adsali, Suru, Ratoon, Kharif, Rabi, etc.)
+    """
+    crop_type = models.ForeignKey(
+        'CropType',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plantation_types',
+        help_text="Crop type this plantation type belongs to"
+    )
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plantation_types',
+        help_text="Industry this plantation type belongs to"
+    )
+    name = models.CharField(max_length=100, help_text="Plantation type name (e.g., Adsali, Suru, Kharif)")
+    code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Short code for this plantation type (used in CropType.plantation_type field)"
+    )
+    description = models.TextField(blank=True, help_text="Description of this plantation type")
+    is_active = models.BooleanField(default=True, help_text="Whether this plantation type is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    crop_type        = models.CharField(max_length=100, blank=True)
-    plantation_type  = models.CharField(max_length=100, choices=PLANTATION_TYPE_CHOICES, blank=True)
-    planting_method  = models.CharField(max_length=100, choices=PLANTATION_METHOD_CHOICES, blank=True)
+    class Meta:
+        unique_together = [['crop_type', 'industry', 'code']]  # Same code can't exist twice for same crop and industry
+        ordering = ['name']
+
+    def __str__(self):
+        crop_name = self.crop_type.crop_type if self.crop_type else "No Crop"
+        industry_name = self.industry.name if self.industry else "Global"
+        return f"{self.name} ({crop_name} - {industry_name})"
+
+
+class PlantingMethod(models.Model):
+    """
+    Industry-specific planting methods (e.g., 3 Bud Method, 2 Bud Method, Broadcast, etc.)
+    """
+    plantation_type = models.ForeignKey(
+        'PlantationType',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='planting_methods',
+        help_text="Plantation type this planting method belongs to"
+    )
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='planting_methods',
+        help_text="Industry this planting method belongs to"
+    )
+    name = models.CharField(max_length=100, help_text="Planting method name (e.g., 3 Bud Method, Broadcast)")
+    code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Short code for this planting method (used in CropType.planting_method field)"
+    )
+    description = models.TextField(blank=True, help_text="Description of this planting method")
+    is_active = models.BooleanField(default=True, help_text="Whether this planting method is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['plantation_type', 'industry', 'code']]  # Same code can't exist twice for same plantation type and industry
+        ordering = ['name']
+
+    def __str__(self):
+        plantation_name = self.plantation_type.name if self.plantation_type else "No Plantation"
+        industry_name = self.industry.name if self.industry else "Global"
+        return f"{self.name} ({plantation_name} - {industry_name})"
+
+
+class CropType(models.Model):
+    """
+    Crop types (e.g., Sugarcane, Wheat, Rice, etc.)
+    Can be linked to PlantationType and PlantingMethod
+    """
+    crop_type = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of the crop type"
+    )
+    # ForeignKey fields (migration 0006 applied)
+    plantation_type = models.ForeignKey(
+        'PlantationType',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='crop_types',
+        help_text="Plantation type for this crop"
+    )
+    planting_method = models.ForeignKey(
+        'PlantingMethod',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='crop_types',
+        help_text="Planting method for this crop"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['crop_type']
+        verbose_name = 'Crop Type'
+        verbose_name_plural = 'Crop Types'
 
     def __str__(self):
         return self.crop_type or "Unnamed CropType"

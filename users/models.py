@@ -153,6 +153,10 @@ class User(AbstractUser):
     def clean(self):
         """Validate phone number format (10 digits for India) and handle +91 country code"""
         super().clean()
+        # Convert empty string to None to avoid unique constraint issues
+        if self.phone_number == '' or (isinstance(self.phone_number, str) and not self.phone_number.strip()):
+            self.phone_number = None
+        
         if self.phone_number:
             # Remove any non-digit characters
             cleaned_phone = re.sub(r'\D', '', self.phone_number)
@@ -167,6 +171,10 @@ class User(AbstractUser):
             self.phone_number = cleaned_phone
     
     def save(self, *args, **kwargs):
+        # Convert empty string to None (NULL) to avoid unique constraint issues
+        if self.phone_number == '' or (isinstance(self.phone_number, str) and not self.phone_number.strip()):
+            self.phone_number = None
+        
         # Clean phone number before saving
         if self.phone_number:
             cleaned_phone = re.sub(r'\D', '', self.phone_number)

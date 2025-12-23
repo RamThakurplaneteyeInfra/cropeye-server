@@ -67,10 +67,12 @@ def filter_by_industry(queryset, user):
         if hasattr(queryset.model, 'industry'):
             # For models with industry field, filter by industry and related users
             if hasattr(queryset.model, 'created_by'):
-                # Models with created_by (e.g., Plot, Farm)
+                # Models with created_by (e.g., Vendor, Order, Stock, Plot, Farm)
+                # Manager should see items created by themselves, their field officers, and farmers
                 return queryset.filter(
                     industry=user_industry
                 ).filter(
+                    Q(created_by=user) |  # Items created by manager themselves
                     Q(created_by__in=field_officers) | 
                     Q(created_by__in=farmers) |
                     Q(farmer__in=farmers) if hasattr(queryset.model, 'farmer') else Q()
@@ -96,6 +98,7 @@ def filter_by_industry(queryset, user):
         else:
             # Model doesn't have industry field, filter by related users
             return queryset.filter(
+                Q(created_by=user) |  # Items created by manager themselves
                 Q(created_by__in=field_officers) |
                 Q(created_by__in=farmers)
             )

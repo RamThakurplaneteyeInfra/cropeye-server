@@ -18,9 +18,9 @@ class VendorCommunicationInline(admin.TabularInline):
 
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
-    list_display = ('vendor_name', 'contact_person', 'email', 'phone', 'city', 'state', 'rating')
-    list_filter = ('rating', 'state', 'city')
-    search_fields = ('vendor_name', 'contact_person', 'email', 'phone', 'gstin_number', 'city')
+    list_display = ('vendor_name', 'industry', 'contact_person', 'email', 'phone', 'city', 'state', 'rating')
+    list_filter = ('industry', 'rating', 'state', 'city')
+    search_fields = ('vendor_name', 'contact_person', 'email', 'phone', 'gstin_number', 'city', 'industry__name')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [PurchaseOrderInline, VendorCommunicationInline]
     
@@ -35,11 +35,22 @@ class VendorAdmin(admin.ModelAdmin):
             'fields': ('website', 'rating', 'notes'),
             'classes': ('collapse',)
         }),
-        ('Metadata', {
-            'fields': ('created_by', 'created_at', 'updated_at'),
+        ('Industry & Metadata', {
+            'fields': ('industry', 'created_by', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Superuser sees everything
+        if request.user.is_superuser:
+            return qs
+        # Filter by user's industry
+        if hasattr(request.user, 'industry') and request.user.industry:
+            return qs.filter(industry=request.user.industry)
+        # Return empty queryset if user has no industry
+        return qs.none()
     
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -53,6 +64,10 @@ class VendorAdmin(admin.ModelAdmin):
         # Set created_by automatically for new vendors
         if not change:  # New vendor
             obj.created_by = request.user
+            # Set industry from user if not set
+            if not obj.industry:
+                if hasattr(request.user, 'industry') and request.user.industry:
+                    obj.industry = request.user.industry
         super().save_model(request, obj, form, change)
 
 class PurchaseOrderItemInline(admin.TabularInline):
@@ -139,9 +154,9 @@ class OrderAdmin(admin.ModelAdmin):
     Order Admin - matches the Accounting form in screenshot
     Fields: Vendor Name, Invoice Number, Invoice Date, State
     """
-    list_display = ('invoice_number', 'vendor', 'invoice_date', 'state', 'created_at')
-    list_filter = ('state', 'invoice_date', 'created_at')
-    search_fields = ('invoice_number', 'vendor__vendor_name')
+    list_display = ('invoice_number', 'vendor', 'industry', 'invoice_date', 'state', 'created_at')
+    list_filter = ('industry', 'state', 'invoice_date', 'created_at')
+    search_fields = ('invoice_number', 'vendor__vendor_name', 'industry__name')
     readonly_fields = ('created_at', 'updated_at')
     inlines = [OrderItemInline]
     
@@ -150,11 +165,22 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('vendor', 'invoice_number', 'invoice_date', 'state'),
             'description': 'Enter the order details. All fields marked with * are required.'
         }),
-        ('Metadata', {
-            'fields': ('created_by', 'created_at', 'updated_at'),
+        ('Industry & Metadata', {
+            'fields': ('industry', 'created_by', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Superuser sees everything
+        if request.user.is_superuser:
+            return qs
+        # Filter by user's industry
+        if hasattr(request.user, 'industry') and request.user.industry:
+            return qs.filter(industry=request.user.industry)
+        # Return empty queryset if user has no industry
+        return qs.none()
     
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -168,6 +194,10 @@ class OrderAdmin(admin.ModelAdmin):
         # Set created_by automatically for new orders
         if not change:
             obj.created_by = request.user
+            # Set industry from user if not set
+            if not obj.industry:
+                if hasattr(request.user, 'industry') and request.user.industry:
+                    obj.industry = request.user.industry
         super().save_model(request, obj, form, change)
     
 

@@ -27,7 +27,12 @@
 <!-- Summary Statistics -->
 <div class="module" style="margin-bottom: 20px;">
     <h2>Summary Statistics</h2>
-    <table class="table" style="width: 100%;">
+    <table class="table" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 15px; background-color: #417690; color: white; font-weight: bold; font-size: 18px; text-align: center; border: 2px solid #417690;" colspan="4">
+                👥 Total Users: <strong>{% if total_users_count %}{{ total_users_count }}{% else %}{{ owners_count|add:managers_count|add:field_officers_count|add:farmers_count }}{% endif %}</strong>
+            </td>
+        </tr>
         <tr>
             <td style="padding: 10px;">
                 <strong>Owners:</strong> {{ owners_count }}
@@ -57,8 +62,17 @@
             </td>
         </tr>
         <tr>
-            <td style="padding: 10px;" colspan="2">
+            <td style="padding: 10px;">
                 <strong>Inventory Items:</strong> {{ inventory_items_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Vendors:</strong> {{ vendors_count|default:"0" }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Stock Items:</strong> {{ stock_items_count|default:"0" }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Orders:</strong> {{ orders_count|default:"0" }}
             </td>
         </tr>
     </table>
@@ -392,7 +406,132 @@
 </div>
 {% endif %}
 
-{% if not owners and not managers and not field_officers and not farmers and not plots and not farms and not tasks and not bookings and not inventory_items %}
+<!-- Vendors Section -->
+{% if vendors %}
+<div class="module">
+    <h2>Vendors ({{ vendors_count }})</h2>
+    <p><a href="{% url 'admin:vendors_vendor_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all vendors in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Vendor Name</th>
+                <th>Contact Person</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>City</th>
+                <th>State</th>
+                <th>Rating</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vendor in vendors|slice:":50" %}
+            <tr>
+                <td>{{ vendor.id }}</td>
+                <td>{{ vendor.vendor_name }}</td>
+                <td>{{ vendor.contact_person|default:"-" }}</td>
+                <td>{{ vendor.email }}</td>
+                <td>{{ vendor.phone }}</td>
+                <td>{{ vendor.city|default:"-" }}</td>
+                <td>{{ vendor.state|default:"-" }}</td>
+                <td>{{ vendor.get_rating_display|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:vendors_vendor_change' vendor.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if vendors_count > 50 %}
+    <p><em>Showing first 50 vendors. <a href="{% url 'admin:vendors_vendor_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all {{ vendors_count }} vendors</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Stock Items Section -->
+<div class="module">
+    <h2>Stock Items ({{ stock_items_count|default:"0" }})</h2>
+    <p><a href="/admin/inventory/stock/?created_by__industry__id__exact={{ industry.id }}">View all stock items in admin</a></p>
+    {% if stock_items %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Item Name</th>
+                <th>Item Type</th>
+                <th>Make</th>
+                <th>Year of Make</th>
+                <th>Estimate Cost</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stock in stock_items|slice:":50" %}
+            <tr>
+                <td>{{ stock.id }}</td>
+                <td>{{ stock.item_name }}</td>
+                <td>{{ stock.get_item_type_display }}</td>
+                <td>{{ stock.make|default:"-" }}</td>
+                <td>{{ stock.year_of_make|default:"-" }}</td>
+                <td>{{ stock.estimate_cost|default:"-" }}</td>
+                <td>{{ stock.get_status_display }}</td>
+                <td>
+                    <a href="/admin/inventory/stock/{{ stock.id }}/change/">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if stock_items_count > 50 %}
+    <p><em>Showing first 50 stock items. <a href="/admin/inventory/stock/?created_by__industry__id__exact={{ industry.id }}">View all {{ stock_items_count }} stock items</a></em></p>
+    {% endif %}
+    {% else %}
+    <p><em>No stock items found for this industry.</em></p>
+    {% endif %}
+</div>
+
+<!-- Orders Section -->
+{% if orders %}
+<div class="module">
+    <h2>Orders ({{ orders_count }})</h2>
+    <p><a href="{% url 'admin:vendors_order_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all orders in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Vendor</th>
+                <th>Invoice Number</th>
+                <th>Invoice Date</th>
+                <th>State</th>
+                <th>Created By</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders|slice:":50" %}
+            <tr>
+                <td>{{ order.id }}</td>
+                <td>{{ order.vendor.vendor_name }}</td>
+                <td>{{ order.invoice_number }}</td>
+                <td>{{ order.invoice_date|default:"-" }}</td>
+                <td>{{ order.state|default:"-" }}</td>
+                <td>{{ order.created_by.username }}</td>
+                <td>
+                    <a href="{% url 'admin:vendors_order_change' order.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if orders_count > 50 %}
+    <p><em>Showing first 50 orders. <a href="{% url 'admin:vendors_order_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all {{ orders_count }} orders</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not owners and not managers and not field_officers and not farmers and not plots and not farms and not tasks and not bookings and not inventory_items and not vendors and not stock_items and not orders %}
 <div class="module">
     <p><strong>No data found for this industry.</strong></p>
 </div>

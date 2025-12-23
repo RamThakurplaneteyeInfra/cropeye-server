@@ -4,8 +4,58 @@ from dotenv import load_dotenv
 from datetime import timedelta
 
 # GDAL Settings
-#GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal310.dll'
-#GEOS_LIBRARY_PATH = r'C:\OSGeo4W\bin\geos_c.dll'
+# Try to auto-detect GDAL library path
+import sys
+
+# Get conda environment paths if using conda
+conda_env_paths = []
+if 'CONDA_PREFIX' in os.environ:
+    conda_prefix = os.environ['CONDA_PREFIX']
+    conda_env_paths = [
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal304.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal303.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal302.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal301.dll'),
+    ]
+
+gdal_paths = [
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev312.dll',
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev311.dll',
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev310.dll',
+    r'C:\OSGeo4W\bin\gdal310.dll',
+    r'C:\OSGeo4W\bin\gdal309.dll',
+    r'C:\OSGeo4W\bin\gdal308.dll',
+    r'C:\OSGeo4W64\bin\gdal310.dll',
+    r'C:\OSGeo4W64\bin\gdal309.dll',
+    r'C:\OSGeo4W64\bin\gdal308.dll',
+] + conda_env_paths
+
+geos_paths = [
+    r'C:\OSGeo4W\bin\geos_c.dll',
+    r'C:\OSGeo4W64\bin\geos_c.dll',
+]
+if 'CONDA_PREFIX' in os.environ:
+    conda_prefix = os.environ['CONDA_PREFIX']
+    geos_paths.extend([
+        os.path.join(conda_prefix, 'Library', 'bin', 'geos_c.dll'),
+    ])
+
+# Check environment variable first
+GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH')
+GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH')
+
+# If not set, try to find it
+if not GDAL_LIBRARY_PATH:
+    for path in gdal_paths:
+        if os.path.exists(path):
+            GDAL_LIBRARY_PATH = path
+            break
+
+if not GEOS_LIBRARY_PATH:
+    for path in geos_paths:
+        if os.path.exists(path):
+            GEOS_LIBRARY_PATH = path
+            break
 
 # Load environment variables
 # Try to load .env.local first (for development), then .env
@@ -23,12 +73,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-# ALLOWED_HOSTS - explicitly include localhost and common IPs for development
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,192.168.41.86')
-ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
-# Also allow all hosts in development if DEBUG is True
-if DEBUG:
-    ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS - Allow all hosts for local network access (same WiFi)
+# For production, set ALLOWED_HOSTS environment variable with specific domains
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
+if allowed_hosts_env == '*':
+    ALLOWED_HOSTS = ['*']  # Allow all hosts for local network access
+else:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -59,6 +110,7 @@ INSTALLED_APPS = [
     'farms',
     'messaging',  # Two-way communication system
     'chatbot',
+    'industries',
 ]
 
 MIDDLEWARE = [
@@ -130,6 +182,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Media files
 MEDIA_URL = '/media/'

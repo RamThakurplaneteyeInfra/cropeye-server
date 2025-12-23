@@ -51,11 +51,21 @@ class Vendor(models.Model):
         (5, '5 - Excellent'),
     ]
     
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='vendors',
+        help_text="Industry this vendor belongs to"
+    )
+    
     vendor_name = models.CharField(max_length=200)
     contact_person = models.CharField(max_length=100, blank=True)
     email = models.EmailField(verbose_name="Email ID")
     phone = models.CharField(max_length=20, verbose_name="Mobile Number")
-    gstin_number = models.CharField(max_length=15, blank=True, null=True, verbose_name="GSTIN Number", help_text="15-digit GSTIN number")
+    gstin_number = models.CharField(max_length=15, blank=True, null=True, unique=True, verbose_name="GSTIN Number", help_text="15-digit GSTIN number")
     state = models.CharField(max_length=100, choices=INDIAN_STATES, blank=True, null=True, verbose_name="State")
     city = models.CharField(max_length=100, blank=True, verbose_name="City")
     address = models.TextField()
@@ -157,6 +167,16 @@ class Order(models.Model):
     """
     Order model for Accounting - matches the screenshot requirements
     """
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='orders',
+        help_text="Industry this order belongs to"
+    )
+    
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='orders', verbose_name="Vendor Name")
     invoice_number = models.CharField(max_length=100, verbose_name="Invoice Number")
     invoice_date = models.DateField(verbose_name="Invoice Date")

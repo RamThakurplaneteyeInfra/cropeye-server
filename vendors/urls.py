@@ -4,7 +4,8 @@ from .views import (
     VendorViewSet, 
     PurchaseOrderViewSet, 
     PurchaseOrderItemViewSet,
-    VendorCommunicationViewSet
+    VendorCommunicationViewSet,
+    OrderViewSet
 )
 
 router = routers.DefaultRouter()
@@ -12,6 +13,7 @@ router.register('vendors', VendorViewSet)
 router.register('purchase-orders', PurchaseOrderViewSet)
 router.register('purchase-order-items', PurchaseOrderItemViewSet)
 router.register('vendor-communications', VendorCommunicationViewSet)
+router.register('orders', OrderViewSet, basename='order')
 
 # Nested routes for purchase orders under vendors
 vendors_router = routers.NestedDefaultRouter(router, 'vendors', lookup='vendor')

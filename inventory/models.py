@@ -109,20 +109,28 @@ class Stock(models.Model):
     """
     ITEM_TYPE_CHOICES = [
         ('logistic', 'Logistic'),
+        ('transport', 'Transport'),
         ('equipment', 'Equipment'),
-        ('tools', 'Tools'),
-        ('materials', 'Materials'),
-        ('supplies', 'Supplies'),
-        ('other', 'Other'),
+        ('office_purpose', 'Office Purpose'),
+        ('storage', 'Storage'),
+        ('processing', 'Processing'),
     ]
     
     STATUS_CHOICES = [
         ('working', 'Working'),
-        ('maintenance', 'Under Maintenance'),
-        ('retired', 'Retired'),
-        ('damaged', 'Damaged'),
-        ('available', 'Available'),
+        ('not_working', 'Not working'),
+        ('under_repair', 'underRepair'),
     ]
+    
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='stocks',
+        help_text="Industry this stock item belongs to"
+    )
     
     item_name = models.CharField(max_length=200, verbose_name="Item Name")
     item_type = models.CharField(max_length=50, choices=ITEM_TYPE_CHOICES, default='logistic', verbose_name="Item Type")

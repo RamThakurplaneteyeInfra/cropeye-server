@@ -286,12 +286,41 @@ class UserViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        queryset = None
+        
         # Global Admin can see all users
         if user.is_superuser:
-            return User.objects.all()
+            queryset = User.objects.all()
+        else:
+            # Use multi-tenant utility to get accessible users
+            queryset = get_accessible_users(user)
         
-        # Use multi-tenant utility to get accessible users
-        return get_accessible_users(user)
+        # Support filtering by role via query parameters
+        role_name = self.request.query_params.get('role')
+        if role_name:
+            # Normalize role name (handle variations like 'fieldofficer', 'field_officer', 'Field Officer')
+            role_name = role_name.lower().replace(' ', '').replace('_', '')
+            # Map common role name variations to database role names
+            role_mapping = {
+                'owner': 'owner',
+                'manager': 'manager',
+                'fieldofficer': 'fieldofficer',
+                'fieldofficer': 'fieldofficer',
+                'farmer': 'farmer',
+            }
+            mapped_role = role_mapping.get(role_name, role_name)
+            queryset = queryset.filter(role__name=mapped_role)
+        
+        # Support filtering by industry via query parameters
+        industry_id = self.request.query_params.get('industry_id')
+        if industry_id:
+            try:
+                industry_id = int(industry_id)
+                queryset = queryset.filter(industry_id=industry_id)
+            except (ValueError, TypeError):
+                pass  # Invalid industry_id, ignore filter
+        
+        return queryset.select_related('role', 'industry').order_by('-date_joined')
     
     @action(detail=False, methods=['get'], url_path='my-field-officers')
     def my_field_officers(self, request):
@@ -1083,6 +1112,21 @@ class UserViewSet(viewsets.ModelViewSet):
         except ImportError:
             inventory_items = []
         
+        # Get vendors, stock items, and orders
+        try:
+            from vendors.models import Vendor, Order
+            vendors = Vendor.objects.filter(created_by__industry=industry).select_related('created_by')
+            orders = Order.objects.filter(created_by__industry=industry).select_related('vendor', 'created_by')
+        except ImportError:
+            vendors = []
+            orders = []
+        
+        try:
+            from inventory.models import Stock
+            stock_items = Stock.objects.filter(created_by__industry=industry).select_related('created_by')
+        except ImportError:
+            stock_items = []
+        
         # Serialize data
         from .serializers import IndustrySerializer
         
@@ -1130,6 +1174,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 'tasks_count': len(tasks_data) if isinstance(tasks, list) else tasks.count(),
                 'bookings_count': len(bookings_data) if isinstance(bookings, list) else bookings.count(),
                 'inventory_items_count': len(inventory_data) if isinstance(inventory_items, list) else inventory_items.count(),
+                'vendors_count': len(vendors) if isinstance(vendors, list) else vendors.count(),
+                'stock_items_count': len(stock_items) if isinstance(stock_items, list) else stock_items.count(),
+                'orders_count': len(orders) if isinstance(orders, list) else orders.count(),
             },
             'data': {
                 'plots': plots_data,
@@ -1139,3 +1186,350 @@ class UserViewSet(viewsets.ModelViewSet):
                 'inventory_items': inventory_data,
             }
         })
+    
+    @action(detail=False, methods=['get'], url_path='total-count')
+    def total_count(self, request):
+        """
+        Get total users count.
+        
+        Query Parameters:
+        - industry_id (optional): Filter by specific industry. If not provided, returns count for user's industry.
+        
+        Returns:
+        {
+            "total_users": 26,
+            "owners": 1,
+            "managers": 2,
+            "field_officers": 3,
+            "farmers": 20,
+            "industry": {
+                "id": 1,
+                "name": "Industry A"
+            }
+        }
+        """
+        from .models import Industry
+        
+        # Get industry_id from query parameters (optional)
+        industry_id = request.query_params.get('industry_id')
+        user = request.user
+        
+        # Determine which industry to use
+        if industry_id:
+            try:
+                industry_id = int(industry_id)
+                industry = Industry.objects.get(id=industry_id)
+                
+                # Permission check: Only superuser or industry owner can access other industries
+                if not user.is_superuser:
+                    user_industry = get_user_industry(user)
+                    if user_industry != industry:
+                        return Response({
+                            'error': 'You do not have permission to access this industry.'
+                        }, status=status.HTTP_403_FORBIDDEN)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'industry_id must be a valid integer'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except Industry.DoesNotExist:
+                return Response({
+                    'error': f'Industry with ID {industry_id} does not exist'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # Use user's industry
+            if user.is_superuser:
+                # Superuser without industry_id - return total across all industries
+                owners = User.objects.filter(role__name='owner')
+                managers = User.objects.filter(role__name='manager')
+                field_officers = User.objects.filter(role__name='fieldofficer')
+                farmers = User.objects.filter(role__name='farmer')
+                industry = None
+            else:
+                user_industry = get_user_industry(user)
+                if not user_industry:
+                    return Response({
+                        'error': 'You are not associated with any industry. Please specify industry_id.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                industry = user_industry
+                owners = User.objects.filter(role__name='owner', industry=industry)
+                managers = User.objects.filter(role__name='manager', industry=industry)
+                field_officers = User.objects.filter(role__name='fieldofficer', industry=industry)
+                farmers = User.objects.filter(role__name='farmer', industry=industry)
+        
+        # Count users by role
+        if industry:
+            owners_count = User.objects.filter(role__name='owner', industry=industry).count()
+            managers_count = User.objects.filter(role__name='manager', industry=industry).count()
+            field_officers_count = User.objects.filter(role__name='fieldofficer', industry=industry).count()
+            farmers_count = User.objects.filter(role__name='farmer', industry=industry).count()
+        else:
+            # Superuser view - all industries
+            owners_count = owners.count()
+            managers_count = managers.count()
+            field_officers_count = field_officers.count()
+            farmers_count = farmers.count()
+        
+        # Calculate total
+        total_users_count = owners_count + managers_count + field_officers_count + farmers_count
+        
+        # Prepare response
+        response_data = {
+            'total_users': total_users_count,
+            'owners': owners_count,
+            'managers': managers_count,
+            'field_officers': field_officers_count,
+            'farmers': farmers_count
+        }
+        
+        # Add industry info if available
+        if industry:
+            response_data['industry'] = {
+                'id': industry.id,
+                'name': industry.name,
+                'description': industry.description
+            }
+        else:
+            response_data['industry'] = None
+            response_data['note'] = 'Total across all industries (superuser view)'
+        
+        return Response(response_data)
+    
+    @action(detail=False, methods=['get'], url_path='dashboard-counts')
+    def dashboard_counts(self, request):
+        """
+        Get dashboard statistics counts for Vendors, Stock Items, Orders, and Bookings.
+        
+        Query Parameters:
+        - industry_id (optional): Filter by specific industry. If not provided, uses user's industry.
+        
+        Returns:
+        {
+            "vendors_count": 5,
+            "stock_items_count": 10,
+            "orders_count": 15,
+            "bookings_count": 8
+        }
+        """
+        from .models import Industry
+        
+        user = request.user
+        industry_id = request.query_params.get('industry_id')
+        industry = None
+        
+        if industry_id:
+            try:
+                industry_id = int(industry_id)
+                industry = Industry.objects.get(id=industry_id)
+                
+                # Permission check for cross-industry access
+                if not user.is_superuser:
+                    user_industry = get_user_industry(user)
+                    if user_industry and user_industry.id != industry.id:
+                        return Response({
+                            'error': 'You do not have permission to access this industry.'
+                        }, status=403)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'industry_id must be a valid integer'
+                }, status=400)
+            except Industry.DoesNotExist:
+                return Response({
+                    'error': f'Industry with ID {industry_id} does not exist'
+                }, status=404)
+        else:
+            # Use user's industry
+            if user.is_superuser:
+                # Superuser without industry_id - return error
+                return Response({
+                    'error': 'industry_id query parameter is required for superuser'
+                }, status=400)
+            else:
+                industry = get_user_industry(user)
+                if not industry:
+                    return Response({
+                        'error': 'You are not associated with any industry. Please specify industry_id.'
+                    }, status=400)
+        
+        # Get counts
+        try:
+            from vendors.models import Vendor, Order
+            vendors_count = Vendor.objects.filter(created_by__industry=industry).count()
+            orders_count = Order.objects.filter(created_by__industry=industry).count()
+        except ImportError:
+            vendors_count = 0
+            orders_count = 0
+        
+        try:
+            from inventory.models import Stock
+            stock_items_count = Stock.objects.filter(created_by__industry=industry).count()
+        except ImportError:
+            stock_items_count = 0
+        
+        try:
+            from bookings.models import Booking
+            bookings_count = Booking.objects.filter(industry=industry).count()
+        except ImportError:
+            bookings_count = 0
+        
+        return Response({
+            'vendors_count': vendors_count,
+            'stock_items_count': stock_items_count,
+            'orders_count': orders_count,
+            'bookings_count': bookings_count
+        })
+    
+    @action(detail=False, methods=['get'], url_path='team-connect')
+    def team_connect(self, request):
+        """
+        Get users filtered by role and industry for Team Connect frontend display.
+        This endpoint returns users separated by role (Owner, Field Officer, Farmer) 
+        based on the industry filter, along with counts for Booking, Orders, Stock Items, and Vendors.
+        
+        Query Parameters:
+        - industry_id (optional): Filter by specific industry. If not provided, uses user's industry.
+        - role (optional): Filter by specific role ('owner', 'fieldofficer', 'farmer'). 
+                          If not provided, returns all roles separated.
+        
+        Returns:
+        {
+            "industry": {...},
+            "users_by_role": {
+                "owners": [...],
+                "field_officers": [...],
+                "farmers": [...]
+            },
+            "counts": {
+                "owners_count": 1,
+                "field_officers_count": 3,
+                "farmers_count": 20,
+                "bookings_count": 15,
+                "orders_count": 8,
+                "stock_items_count": 25,
+                "vendors_count": 12
+            }
+        }
+        
+        This endpoint is optimized for the Team Connect UI component.
+        """
+        from .models import Industry
+        from .serializers import IndustrySerializer
+        from bookings.models import Booking
+        from vendors.models import Order, Vendor
+        from inventory.models import Stock
+        
+        user = request.user
+        
+        # Get industry_id from query parameters or use user's industry
+        industry_id = request.query_params.get('industry_id')
+        industry = None
+        
+        if industry_id:
+            try:
+                industry_id = int(industry_id)
+                industry = Industry.objects.get(id=industry_id)
+                
+                # Permission check for cross-industry access
+                if not user.is_superuser:
+                    user_industry = get_user_industry(user)
+                    if user_industry and user_industry.id != industry.id:
+                        return Response({
+                            'error': 'You do not have permission to access this industry.'
+                        }, status=403)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'industry_id must be a valid integer'
+                }, status=400)
+            except Industry.DoesNotExist:
+                return Response({
+                    'error': f'Industry with ID {industry_id} does not exist'
+                }, status=404)
+        else:
+            # Use user's industry
+            if user.is_superuser:
+                # Superuser without industry_id - return empty or all industries
+                # For team connect, we need an industry, so return error
+                return Response({
+                    'error': 'industry_id query parameter is required for superuser'
+                }, status=400)
+            else:
+                industry = get_user_industry(user)
+                if not industry:
+                    return Response({
+                        'error': 'You are not associated with any industry. Please specify industry_id.'
+                    }, status=400)
+        
+        # Get specific role filter if provided
+        role_filter = request.query_params.get('role')
+        
+        # Query for users by role
+        if role_filter:
+            # Normalize role name
+            role_filter = role_filter.lower().replace(' ', '').replace('_', '')
+            role_mapping = {
+                'owner': 'owner',
+                'manager': 'manager',
+                'fieldofficer': 'fieldofficer',
+                'farmer': 'farmer',
+            }
+            mapped_role = role_mapping.get(role_filter, role_filter)
+            
+            users = User.objects.filter(
+                industry=industry,
+                role__name=mapped_role
+            ).select_related('role', 'industry').order_by('-date_joined')
+            
+            # Return single role data
+            return Response({
+                'industry': IndustrySerializer(industry).data,
+                'role': mapped_role,
+                'users': UserSerializer(users, many=True).data,
+                'count': users.count()
+            })
+        else:
+            # Return all roles separated
+            owners = User.objects.filter(
+                industry=industry,
+                role__name='owner'
+            ).select_related('role', 'industry').order_by('-date_joined')
+            
+            managers = User.objects.filter(
+                industry=industry,
+                role__name='manager'
+            ).select_related('role', 'industry').order_by('-date_joined')
+            
+            field_officers = User.objects.filter(
+                industry=industry,
+                role__name='fieldofficer'
+            ).select_related('role', 'industry').order_by('-date_joined')
+            
+            farmers = User.objects.filter(
+                industry=industry,
+                role__name='farmer'
+            ).select_related('role', 'industry').order_by('-date_joined')
+            
+            # Get counts for Booking, Orders, Stock Items, and Vendors
+            # All models now have industry field, so filter directly by industry
+            bookings_count = Booking.objects.filter(industry=industry).count()
+            orders_count = Order.objects.filter(industry=industry).count()
+            stock_items_count = Stock.objects.filter(industry=industry).count()
+            vendors_count = Vendor.objects.filter(industry=industry).count()
+            
+            return Response({
+                'industry': IndustrySerializer(industry).data,
+                'users_by_role': {
+                    'owners': UserSerializer(owners, many=True).data,
+                    'managers': UserSerializer(managers, many=True).data,
+                    'field_officers': UserSerializer(field_officers, many=True).data,
+                    'farmers': UserSerializer(farmers, many=True).data,
+                },
+                'counts': {
+                    'owners_count': owners.count(),
+                    'managers_count': managers.count(),
+                    'field_officers_count': field_officers.count(),
+                    'farmers_count': farmers.count(),
+                    'bookings_count': bookings_count,
+                    'orders_count': orders_count,
+                    'stock_items_count': stock_items_count,
+                    'vendors_count': vendors_count,
+                }
+            })

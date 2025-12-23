@@ -49,9 +49,9 @@ class StockAdmin(admin.ModelAdmin):
     Stock Admin - matches the "Add New Stock" form in screenshot
     Fields: Item Name, Item Type, Make, Year of Make, Estimate Cost, Status, Remark
     """
-    list_display = ('item_name', 'item_type', 'make', 'year_of_make', 'status', 'estimate_cost', 'created_at')
-    list_filter = ('item_type', 'status', 'created_at')
-    search_fields = ('item_name', 'make', 'remark')
+    list_display = ('item_name', 'industry', 'item_type', 'make', 'year_of_make', 'status', 'estimate_cost', 'created_at')
+    list_filter = ('industry', 'item_type', 'status', 'created_at')
+    search_fields = ('item_name', 'make', 'remark', 'industry__name')
     readonly_fields = ('created_at', 'updated_at')
     
     fieldsets = (
@@ -66,11 +66,22 @@ class StockAdmin(admin.ModelAdmin):
         ('Additional Information', {
             'fields': ('remark',),
         }),
-        ('Metadata', {
-            'fields': ('created_by', 'created_at', 'updated_at'),
+        ('Industry & Metadata', {
+            'fields': ('industry', 'created_by', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Superuser sees everything
+        if request.user.is_superuser:
+            return qs
+        # Filter by user's industry
+        if hasattr(request.user, 'industry') and request.user.industry:
+            return qs.filter(industry=request.user.industry)
+        # Return empty queryset if user has no industry
+        return qs.none()
     
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -84,4 +95,8 @@ class StockAdmin(admin.ModelAdmin):
         # Set created_by automatically for new stocks
         if not change:
             obj.created_by = request.user
+            # Set industry from user if not set
+            if not obj.industry:
+                if hasattr(request.user, 'industry') and request.user.industry:
+                    obj.industry = request.user.industry
         super().save_model(request, obj, form, change)

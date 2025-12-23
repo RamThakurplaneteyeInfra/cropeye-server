@@ -64,7 +64,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='messages')
     def messages(self, request, pk=None):
         """Get all messages in a conversation"""
-        conversation = self.get_object()
+        try:
+            # First check if conversation exists
+            conversation = Conversation.objects.get(pk=pk)
+        except Conversation.DoesNotExist:
+            return Response(
+                {"detail": "Conversation not found.", "error_code": "CONVERSATION_NOT_FOUND"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Then check if user is a participant
+        user = request.user
+        if conversation.participant1 != user and conversation.participant2 != user:
+            return Response(
+                {
+                    "detail": "You do not have permission to access this conversation.",
+                    "error_code": "PERMISSION_DENIED",
+                    "conversation_id": int(pk)
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # User is a participant, return messages
         messages = conversation.messages.all()
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
