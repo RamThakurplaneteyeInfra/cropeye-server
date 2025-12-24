@@ -10,7 +10,7 @@ User = get_user_model()
 
 class FarmSummarySerializer(serializers.ModelSerializer):
     """A lean serializer for farm details within a plot."""
-    plantation_type = serializers.CharField(source='crop_type.plantation_type', allow_null=True)
+    plantation_type = serializers.SerializerMethodField()
     crop_type = serializers.CharField(source='crop_type.crop_type', allow_null=True)
 
     class Meta:
@@ -23,6 +23,12 @@ class FarmSummarySerializer(serializers.ModelSerializer):
             'plantation_type',
             'plantation_date'
         ]
+    
+    def get_plantation_type(self, obj):
+        """Get plantation type name from ForeignKey relationship"""
+        if obj.crop_type and obj.crop_type.plantation_type:
+            return obj.crop_type.plantation_type.name
+        return None
 
 class PlotDetailSerializer(serializers.ModelSerializer):
     """Serializer for detailed plot information within nested responses."""
@@ -173,10 +179,10 @@ class FarmerDetailSerializer(UserSerializer):
                 'crop_type': {
                     'id': farm.crop_type.id,
                     'crop_type': farm.crop_type.crop_type,
-                    'plantation_type': farm.crop_type.plantation_type,
-                    'plantation_type_display': farm.crop_type.get_plantation_type_display(),
-                    'planting_method': farm.crop_type.planting_method,
-                    'planting_method_display': farm.crop_type.get_planting_method_display()
+                    'plantation_type': farm.crop_type.plantation_type.id if farm.crop_type.plantation_type else None,
+                    'plantation_type_display': farm.crop_type.plantation_type.name if farm.crop_type.plantation_type else None,
+                    'planting_method': farm.crop_type.planting_method.id if farm.crop_type.planting_method else None,
+                    'planting_method_display': farm.crop_type.planting_method.name if farm.crop_type.planting_method else None
                 } if farm.crop_type else None,
                 'farm_document': {
                     'name': farm.farm_document.name.split('/')[-1] if farm.farm_document else None,
@@ -232,10 +238,10 @@ class FarmerDetailSerializer(UserSerializer):
                     'farm_id': farm.id,
                     'farm_uid': str(farm.farm_uid),
                     'crop_type': farm.crop_type.crop_type,
-                    'plantation_type': farm.crop_type.plantation_type,
-                    'plantation_type_display': farm.crop_type.get_plantation_type_display(),
-                    'planting_method': farm.crop_type.planting_method,
-                    'planting_method_display': farm.crop_type.get_planting_method_display(),
+                    'plantation_type': farm.crop_type.plantation_type.id if farm.crop_type.plantation_type else None,
+                    'plantation_type_display': farm.crop_type.plantation_type.name if farm.crop_type.plantation_type else None,
+                    'planting_method': farm.crop_type.planting_method.id if farm.crop_type.planting_method else None,
+                    'planting_method_display': farm.crop_type.planting_method.name if farm.crop_type.planting_method else None,
                     'plantation_date': farm.plantation_date.isoformat() if farm.plantation_date else None,
                     'area_size': str(farm.area_size) if farm.area_size else None,
                     'soil_type': farm.soil_type.name if farm.soil_type else None

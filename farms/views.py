@@ -268,7 +268,22 @@ class FarmViewSet(viewsets.ModelViewSet):
                     fastapi_plot_id = generate_fastapi_plot_id(plot)
 
                     # Get farm details for this plot
-                    farms = plot.farms.all().select_related('crop_type', 'soil_type').prefetch_related('irrigations__irrigation_type')
+                    # Use select_related to fetch ForeignKey relationships efficiently
+                    farms = plot.farms.all().select_related(
+                        'crop_type', 
+                        'crop_type__plantation_type', 
+                        'crop_type__planting_method',
+                        'soil_type'
+                    ).prefetch_related('irrigations__irrigation_type')
+                    
+                    # Bulk fetch all crop_type IDs and their relationships to avoid N+1 queries
+                    from farms.models import CropType
+                    crop_type_ids = [f.crop_type_id for f in farms if f.crop_type_id]
+                    crop_types_dict = {}
+                    if crop_type_ids:
+                        crop_types = CropType.objects.select_related('plantation_type', 'planting_method').filter(id__in=crop_type_ids)
+                        crop_types_dict = {ct.id: ct for ct in crop_types}
+                    
                     farm_details = []
 
                     for farm in farms:
@@ -287,14 +302,32 @@ class FarmViewSet(viewsets.ModelViewSet):
                             }
                             irrigation_details.append(irrigation_info)
 
+                        # Get plantation_type and planting_method names from ForeignKey relationships
+                        # Use bulk-fetched crop_type to avoid N+1 queries
+                        plantation_type_name = None
+                        planting_method_name = None
+                        
+                        if farm.crop_type_id and farm.crop_type_id in crop_types_dict:
+                            crop_type = crop_types_dict[farm.crop_type_id]
+                            try:
+                                if crop_type.plantation_type_id and crop_type.plantation_type:
+                                    plantation_type_name = crop_type.plantation_type.name
+                            except (AttributeError, Exception):
+                                pass
+                            try:
+                                if crop_type.planting_method_id and crop_type.planting_method:
+                                    planting_method_name = crop_type.planting_method.name
+                            except (AttributeError, Exception):
+                                pass
+
                         farm_info = {
                             'farm_uid': str(farm.farm_uid),
                             'address': farm.address,
                             'area_size': str(farm.area_size),
                             'soil_type': farm.soil_type.name if farm.soil_type else None,
                             'crop_type': farm.crop_type.crop_type if farm.crop_type else None,
-                            'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
-                            'planting_method': farm.crop_type.get_planting_method_display() if farm.crop_type and farm.crop_type.planting_method else None,
+                            'plantation_type': plantation_type_name,
+                            'planting_method': planting_method_name,
                             'plantation_date': farm.plantation_date.isoformat() if farm.plantation_date else None,
                             'spacing_a': float(farm.spacing_a) if farm.spacing_a else None,
                             'spacing_b': float(farm.spacing_b) if farm.spacing_b else None,
@@ -746,8 +779,8 @@ class FarmViewSet(viewsets.ModelViewSet):
                             'area_size': str(farm.area_size) if farm.area_size else None,
                             'soil_type': farm.soil_type.name if farm.soil_type else None,
                             'crop_type': farm.crop_type.crop_type if farm.crop_type else None,
-                            'plantation_type': farm.crop_type.plantation_type if farm.crop_type else None,
-                            'planting_method': farm.crop_type.planting_method if farm.crop_type else None,
+                            'plantation_type': farm.crop_type.plantation_type.name if farm.crop_type and farm.crop_type.plantation_type else None,
+                            'planting_method': farm.crop_type.planting_method.name if farm.crop_type and farm.crop_type.planting_method else None,
                             'created_at': farm.created_at.strftime('%Y-%m-%d %H:%M:%S') if farm.created_at else None,
                             'irrigations_count': farm.irrigations.count(),
                         }
@@ -841,7 +874,7 @@ class FarmViewSet(viewsets.ModelViewSet):
                     if farm.crop_type and farm.crop_type.crop_type:
                         crop_types.add(farm.crop_type.crop_type)
                     if farm.crop_type and farm.crop_type.plantation_type:
-                        plantation_types.add(farm.crop_type.get_plantation_type_display())
+                        plantation_types.add(farm.crop_type.plantation_type.name)
 
                     # Get irrigation details
                     irrigation_details = []
@@ -894,10 +927,10 @@ class FarmViewSet(viewsets.ModelViewSet):
                         'crop_type': {
                             'id': farm.crop_type.id,
                             'crop_type': farm.crop_type.crop_type,
-                            'plantation_type': farm.crop_type.plantation_type,
-                            'plantation_type_display': farm.crop_type.get_plantation_type_display() if farm.crop_type.plantation_type else None,
-                            'planting_method': farm.crop_type.planting_method,
-                            'planting_method_display': farm.crop_type.get_planting_method_display() if farm.crop_type.planting_method else None
+                            'plantation_type': farm.crop_type.plantation_type.id if farm.crop_type.plantation_type else None,
+                            'plantation_type_display': farm.crop_type.plantation_type.name if farm.crop_type.plantation_type else None,
+                            'planting_method': farm.crop_type.planting_method.id if farm.crop_type.planting_method else None,
+                            'planting_method_display': farm.crop_type.planting_method.name if farm.crop_type.planting_method else None
                         } if farm.crop_type else None,
                         'farm_document': {
                             'name': farm.farm_document.name,
@@ -1136,8 +1169,8 @@ class PlotViewSet(viewsets.ModelViewSet):
                 farm_info = {
                     'id': farm.id,
                     'plantation_date': farm.plantation_date.isoformat() if farm.plantation_date else None,
-                    'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
-                    'plantation_type_code': farm.crop_type.plantation_type if farm.crop_type else None
+                    'plantation_type': farm.crop_type.plantation_type.name if farm.crop_type and farm.crop_type.plantation_type else None,
+                    'plantation_type_code': farm.crop_type.plantation_type.code if farm.crop_type and farm.crop_type.plantation_type else None
                 }
                 farm_details.append(farm_info)
             
