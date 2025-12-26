@@ -135,11 +135,26 @@ class CropTypeViewSet(viewsets.ModelViewSet):
     queryset = CropType.objects.all()
     serializer_class = CropTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['industry', 'plantation_type', 'planting_method']
+    search_fields = ['crop_type']
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+        return qs
+
+    def perform_create(self, serializer):
+        """Auto-assign industry when creating crop type"""
+        user = self.request.user
+        user_industry = get_user_industry(user)
+        serializer.save(industry=user_industry)
 
 
 class FarmViewSet(viewsets.ModelViewSet):

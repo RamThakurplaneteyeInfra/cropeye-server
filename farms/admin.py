@@ -40,9 +40,9 @@ class PlantationTypeInline(admin.TabularInline):
 
 
 @admin.register(CropType)
-class CropTypeAdmin(admin.ModelAdmin):
-    list_display = ('crop_type', 'plantation_type_display', 'planting_method_display')
-    list_filter = ('plantation_type', 'planting_method')
+class CropTypeAdmin(IndustryFilteredAdmin):
+    list_display = ('crop_type', 'industry', 'plantation_type_display', 'planting_method_display')
+    list_filter = ('industry', 'plantation_type', 'planting_method')
     search_fields = ('crop_type',)
     change_form_template = 'admin/farms/croptype/change_form.html'
     inlines = [PlantationTypeInline]
@@ -51,7 +51,7 @@ class CropTypeAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (None, {
-            'fields': ('crop_type', 'plantation_type', 'planting_method')
+            'fields': ('industry', 'crop_type', 'plantation_type', 'planting_method')
         }),
     )
     

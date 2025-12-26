@@ -69,10 +69,11 @@ class CropTypeSerializer(serializers.ModelSerializer):
     plantation_type_display = serializers.CharField(source='get_plantation_type_display', read_only=True)
     planting_method_display = serializers.CharField(source='get_planting_method_display', read_only=True)
     plantation_date = serializers.SerializerMethodField()
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
     
     class Meta:
         model = CropType
-        fields = ['id', 'crop_type', 'plantation_type', 'plantation_type_display', 'planting_method', 'planting_method_display', 'plantation_date']
+        fields = ['id', 'crop_type', 'industry', 'industry_name', 'plantation_type', 'plantation_type_display', 'planting_method', 'planting_method_display', 'plantation_date']
     
     def get_plantation_date(self, obj):
         # Get plantation_date from the parent Farm instance passed through context

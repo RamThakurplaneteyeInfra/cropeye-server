@@ -119,6 +119,15 @@ class CropType(models.Model):
         ('other',           'Other'),
     ]
 
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='crop_types',
+        help_text="Industry this crop type belongs to"
+    )
     crop_type = models.CharField(
         max_length=100,
         blank=True,
