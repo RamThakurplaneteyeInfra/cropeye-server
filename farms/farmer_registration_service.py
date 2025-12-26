@@ -254,17 +254,48 @@ class CompleteFarmerRegistrationService:
         plot._skip_fastapi_sync = True
         
         # Handle geometry if provided
+        # Location (Point)
         if plot_data.get('location'):
-            plot.location = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
-                plot_data['location']
-            )
+            try:
+                location_geom = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
+                    plot_data['location']
+                )
+                if location_geom:
+                    plot.location = location_geom
+                    logger.info(f"Set plot location: {location_geom}")
+            except Exception as e:
+                logger.error(f"Error setting plot location: {str(e)}")
+                raise serializers.ValidationError(f"Invalid location geometry: {str(e)}")
         
-        if plot_data.get('boundary'):
-            plot.boundary = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
-                plot_data['boundary']
-            )
+        # Boundary (Polygon) - IMPORTANT: Only set if explicitly provided
+        if 'boundary' in plot_data and plot_data.get('boundary') is not None:
+            try:
+                boundary_geom = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
+                    plot_data['boundary']
+                )
+                if boundary_geom:
+                    # Validate it's actually a polygon
+                    if boundary_geom.geom_type != 'Polygon':
+                        raise ValueError(f"Boundary must be a Polygon, got {boundary_geom.geom_type}")
+                    
+                    plot.boundary = boundary_geom
+                    logger.info(f"Set plot boundary: {boundary_geom.geom_type} with {len(boundary_geom.coords[0])} points")
+                else:
+                    # Explicitly set to None if empty/null boundary provided
+                    plot.boundary = None
+                    logger.info("Boundary explicitly set to None")
+            except Exception as e:
+                logger.error(f"Error setting plot boundary: {str(e)}")
+                raise serializers.ValidationError(f"Invalid boundary geometry: {str(e)}")
+        # If boundary is not in plot_data at all, leave it as None (don't create default)
         
         plot.save()
+        
+        # Log the saved geometry for debugging
+        if plot.boundary:
+            logger.info(f"Saved plot boundary: {plot.boundary.geom_type}, area: {plot.boundary.area if hasattr(plot.boundary, 'area') else 'N/A'}")
+        else:
+            logger.info("Plot saved without boundary (boundary is None)")
         
         logger.info(f"Created plot: GAT {plot.gat_number} (ID: {plot.id}) for farmer {farmer.username}")
         return plot
@@ -511,15 +542,28 @@ class CompleteFarmerRegistrationService:
         Convert GeoJSON dictionary to Django GIS geometry object
         
         Args:
-            geojson_data: Dictionary with GeoJSON format
+            geojson_data: Dictionary with GeoJSON format or string
             
         Returns:
-            Django GIS geometry object
+            Django GIS geometry object (Point, Polygon, etc.)
         """
         try:
-            from django.contrib.gis.geos import GEOSGeometry
+            from django.contrib.gis.geos import GEOSGeometry, Point, Polygon
             import json
             
+            if geojson_data is None:
+                return None
+            
+            # Handle string input (JSON string)
+            if isinstance(geojson_data, str):
+                try:
+                    # Try to parse as JSON first
+                    geojson_data = json.loads(geojson_data)
+                except json.JSONDecodeError:
+                    # If not valid JSON, try direct GEOSGeometry creation
+                    return GEOSGeometry(geojson_data)
+            
+            # Handle dict input (GeoJSON format)
             if isinstance(geojson_data, dict):
                 # Validate basic GeoJSON structure
                 if 'type' not in geojson_data:
@@ -527,18 +571,65 @@ class CompleteFarmerRegistrationService:
                 if 'coordinates' not in geojson_data:
                     raise ValueError("GeoJSON must have 'coordinates' field")
                 
-                # Convert dict to JSON string, then to geometry
-                geojson_string = json.dumps(geojson_data)
-                return GEOSGeometry(geojson_string)
-            elif isinstance(geojson_data, str):
-                # Already a JSON string
-                return GEOSGeometry(geojson_data)
-            else:
-                raise ValueError(f"Invalid geometry data type: {type(geojson_data)}")
+                geom_type = geojson_data.get('type', '').lower()
+                coordinates = geojson_data.get('coordinates')
                 
+                # Validate coordinates based on type
+                if geom_type == 'point':
+                    if not isinstance(coordinates, list) or len(coordinates) < 2:
+                        raise ValueError("Point coordinates must be [longitude, latitude] or [lng, lat, elevation]")
+                    # Ensure coordinates are in correct order: [longitude, latitude]
+                    lng, lat = float(coordinates[0]), float(coordinates[1])
+                    return Point(lng, lat, srid=4326)
+                
+                elif geom_type == 'polygon':
+                    if not isinstance(coordinates, list) or len(coordinates) == 0:
+                        raise ValueError("Polygon coordinates must be a list of rings")
+                    
+                    # Validate polygon ring structure
+                    # Polygon coordinates should be: [[[lng, lat], [lng, lat], ...]]
+                    if not isinstance(coordinates[0], list) or len(coordinates[0]) < 4:
+                        raise ValueError("Polygon must have at least 4 points (first and last must be the same)")
+                    
+                    # Ensure first and last points are the same (closed ring)
+                    first_ring = coordinates[0]
+                    if first_ring[0] != first_ring[-1]:
+                        # Auto-close the polygon by adding the first point at the end
+                        first_ring.append(first_ring[0])
+                        logger.info("Auto-closed polygon ring (first and last points were different)")
+                    
+                    # Convert to GEOSGeometry
+                    geojson_string = json.dumps(geojson_data)
+                    geometry = GEOSGeometry(geojson_string, srid=4326)
+                    
+                    # Validate the geometry
+                    if not geometry.valid:
+                        logger.warning(f"Invalid geometry detected, attempting to fix: {geometry.valid_reason}")
+                        # Try to fix invalid geometry
+                        try:
+                            geometry = geometry.buffer(0)  # Buffer(0) can fix some invalid geometries
+                        except:
+                            pass
+                    
+                    return geometry
+                
+                else:
+                    # For other geometry types (LineString, MultiPoint, etc.), use generic conversion
+                    geojson_string = json.dumps(geojson_data)
+                    return GEOSGeometry(geojson_string, srid=4326)
+            
+            else:
+                raise ValueError(f"Invalid geometry data type: {type(geojson_data)}. Expected dict or str.")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error converting GeoJSON: {str(e)}")
+            raise serializers.ValidationError(f"Invalid JSON format in geometry data: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Validation error converting GeoJSON: {str(e)}")
+            raise serializers.ValidationError(f"Invalid geometry data: {str(e)}")
         except Exception as e:
             logger.error(f"Error converting GeoJSON to geometry: {str(e)}")
-            raise serializers.ValidationError(f"Invalid geometry data: {str(e)}")
+            raise serializers.ValidationError(f"Error processing geometry data: {str(e)}")
     
     @staticmethod
     def _sync_plot_to_fastapi_services(plot):

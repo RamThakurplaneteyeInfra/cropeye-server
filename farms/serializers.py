@@ -85,8 +85,17 @@ class CropTypeSerializer(serializers.ModelSerializer):
 
 class PlotSerializer(serializers.ModelSerializer):
     # Replace read-only method fields with writeable GeometryFields
-    location = GeometryField(required=False, allow_null=True)
-    boundary = GeometryField(required=False, allow_null=True)
+    # GeometryField accepts GeoJSON format: {"type": "Point/Polygon", "coordinates": [...]}
+    location = GeometryField(
+        required=False, 
+        allow_null=True,
+        help_text="Point geometry as GeoJSON: {\"type\": \"Point\", \"coordinates\": [longitude, latitude]}"
+    )
+    boundary = GeometryField(
+        required=False, 
+        allow_null=True,
+        help_text="Polygon geometry as GeoJSON: {\"type\": \"Polygon\", \"coordinates\": [[[lng, lat], [lng, lat], ...]]}"
+    )
     
     # Include farmer and created_by relationships
     farmer = UserSerializer(read_only=True)
@@ -120,6 +129,32 @@ class PlotSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['farmer', 'created_by', 'created_at', 'updated_at']
+    
+    def validate_boundary(self, value):
+        """Validate that boundary is a Polygon if provided"""
+        if value is not None:
+            from django.contrib.gis.geos import GEOSGeometry
+            if hasattr(value, 'geom_type'):
+                if value.geom_type != 'Polygon':
+                    raise serializers.ValidationError(
+                        f"Boundary must be a Polygon geometry, got {value.geom_type}"
+                    )
+            elif isinstance(value, (str, dict)):
+                # If it's still in GeoJSON format, validate it
+                try:
+                    import json
+                    if isinstance(value, dict):
+                        geojson_str = json.dumps(value)
+                    else:
+                        geojson_str = value
+                    geom = GEOSGeometry(geojson_str)
+                    if geom.geom_type != 'Polygon':
+                        raise serializers.ValidationError(
+                            f"Boundary must be a Polygon geometry, got {geom.geom_type}"
+                        )
+                except Exception as e:
+                    raise serializers.ValidationError(f"Invalid boundary geometry: {str(e)}")
+        return value
 
 
 class FarmImageSerializer(serializers.ModelSerializer):
