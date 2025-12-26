@@ -41,19 +41,32 @@ class PlantationTypeInline(admin.TabularInline):
 
 @admin.register(CropType)
 class CropTypeAdmin(admin.ModelAdmin):
-    list_display = ('crop_type', 'plantation_type', 'planting_method')
+    list_display = ('crop_type', 'plantation_type_display', 'planting_method_display')
     list_filter = ('plantation_type', 'planting_method')
     search_fields = ('crop_type',)
     change_form_template = 'admin/farms/croptype/change_form.html'
     inlines = [PlantationTypeInline]
-    # Note: plantation_type and planting_method are CharField until migration 0006 is applied
-    # After migration, they will be ForeignKey and Django's native popup icons will appear
+    # Note: plantation_type and planting_method are CharField with choices (migration 0016 applied)
+    # They use choice fields like 'adsali', 'suru', 'ratoon', '3_bud', '2_bud', etc.
     
     fieldsets = (
         (None, {
             'fields': ('crop_type', 'plantation_type', 'planting_method')
         }),
     )
+    
+    
+    def plantation_type_display(self, obj):
+        """Display the human-readable plantation type"""
+        return obj.get_plantation_type_display() if obj.plantation_type else '-'
+    plantation_type_display.short_description = 'Plantation Type'
+    plantation_type_display.admin_order_field = 'plantation_type'
+    
+    def planting_method_display(self, obj):
+        """Display the human-readable planting method"""
+        return obj.get_planting_method_display() if obj.planting_method else '-'
+    planting_method_display.short_description = 'Planting Method'
+    planting_method_display.admin_order_field = 'planting_method'
 
 
 @admin.register(PlantationType)

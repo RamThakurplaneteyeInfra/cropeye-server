@@ -303,145 +303,92 @@ class CompleteFarmerRegistrationService:
             except CropType.DoesNotExist:
                 raise serializers.ValidationError(f"Crop type ID {farm_data['crop_type_id']} not found")
         elif farm_data.get('crop_type_name'):
-            # Get industry from field_officer for PlantationType/PlantingMethod creation
-            industry = None
-            if field_officer and hasattr(field_officer, 'industry') and field_officer.industry:
-                industry = field_officer.industry
+            # Get plantation_type and planting_method as strings (choice values)
+            # Support both direct string values and backward compatibility with IDs
+            plantation_type_str = farm_data.get('plantation_type', '')
+            planting_method_str = farm_data.get('planting_method', '')
             
-            # Get plantation_type if provided (can be ID, object, or string code/name for backward compatibility)
-            plantation_type = None
+            # If IDs are provided (backward compatibility), try to get the code/name
             if farm_data.get('plantation_type_id'):
                 try:
                     from .models import PlantationType
-                    plantation_type = PlantationType.objects.get(id=farm_data['plantation_type_id'])
+                    pt_obj = PlantationType.objects.get(id=farm_data['plantation_type_id'])
+                    plantation_type_str = pt_obj.code if pt_obj.code else pt_obj.name
                 except PlantationType.DoesNotExist:
-                    raise serializers.ValidationError(f"Plantation type ID {farm_data['plantation_type_id']} not found")
-            elif farm_data.get('plantation_type'):
-                from .models import PlantationType
-                pt_value = farm_data['plantation_type']
-                # If it's already an object, use it directly
-                if isinstance(pt_value, PlantationType):
-                    plantation_type = pt_value
-                # If it's a string, try to find by code or name, or create if not found
-                elif isinstance(pt_value, str):
-                    try:
-                        # Try to find by code first, then by name
-                        plantation_type = PlantationType.objects.filter(code=pt_value, industry=industry).first()
-                        if not plantation_type:
-                            plantation_type = PlantationType.objects.filter(name=pt_value, industry=industry).first()
-                        # If still not found, try without industry filter (for backward compatibility)
-                        if not plantation_type:
-                            plantation_type = PlantationType.objects.filter(code=pt_value).first()
-                        if not plantation_type:
-                            plantation_type = PlantationType.objects.filter(name=pt_value).first()
-                        
-                        # If still not found, auto-create it
-                        if not plantation_type:
-                            # Capitalize first letter for name
-                            pt_name = pt_value.replace('_', ' ').title()
-                            # Use get_or_create with unique constraint fields (industry, code)
-                            plantation_type, created = PlantationType.objects.get_or_create(
-                                industry=industry,
-                                code=pt_value,
-                                defaults={
-                                    'name': pt_name,
-                                    'is_active': True,
-                                    'description': f'Auto-created plantation type: {pt_name}'
-                                }
-                            )
-                            if created:
-                                logger.info(f"Auto-created PlantationType '{pt_name}' (code: {pt_value}) for industry '{industry.name if industry else 'None'}'")
-                    except Exception as e:
-                        logger.warning(f"Error looking up/creating plantation type '{pt_value}': {str(e)}")
+                    logger.warning(f"Plantation type ID {farm_data['plantation_type_id']} not found")
+                    plantation_type_str = ''
             
-            # Get planting_method if provided (can be ID, object, or string code/name for backward compatibility)
-            planting_method = None
             if farm_data.get('planting_method_id'):
                 try:
                     from .models import PlantingMethod
-                    planting_method = PlantingMethod.objects.get(id=farm_data['planting_method_id'])
+                    pm_obj = PlantingMethod.objects.get(id=farm_data['planting_method_id'])
+                    planting_method_str = pm_obj.code if pm_obj.code else pm_obj.name
                 except PlantingMethod.DoesNotExist:
-                    raise serializers.ValidationError(f"Planting method ID {farm_data['planting_method_id']} not found")
-            elif farm_data.get('planting_method'):
-                from .models import PlantingMethod
-                pm_value = farm_data['planting_method']
-                # If it's already an object, use it directly
-                if isinstance(pm_value, PlantingMethod):
-                    planting_method = pm_value
-                # If it's a string, try to find by code or name, or create if not found
-                elif isinstance(pm_value, str):
-                    try:
-                        # Try to find by code first, then by name (filtered by plantation_type if available)
-                        if plantation_type:
-                            planting_method = PlantingMethod.objects.filter(
-                                code=pm_value,
-                                plantation_type=plantation_type
-                            ).first()
-                            if not planting_method:
-                                planting_method = PlantingMethod.objects.filter(
-                                    name=pm_value,
-                                    plantation_type=plantation_type
-                                ).first()
-                        
-                        # If still not found, try without plantation_type filter
-                        if not planting_method:
-                            planting_method = PlantingMethod.objects.filter(code=pm_value).first()
-                        if not planting_method:
-                            planting_method = PlantingMethod.objects.filter(name=pm_value).first()
-                        
-                        # If still not found, auto-create it
-                        if not planting_method:
-                            # Capitalize first letter for name
-                            pm_name = pm_value.replace('_', ' ').title()
-                            # Use get_or_create with unique constraint fields (plantation_type, industry, code)
-                            planting_method, created = PlantingMethod.objects.get_or_create(
-                                plantation_type=plantation_type,
-                                industry=industry,
-                                code=pm_value,
-                                defaults={
-                                    'name': pm_name,
-                                    'is_active': True,
-                                    'description': f'Auto-created planting method: {pm_name}'
-                                }
-                            )
-                            if created:
-                                logger.info(f"Auto-created PlantingMethod '{pm_name}' (code: {pm_value}) for industry '{industry.name if industry else 'None'}'")
-                    except Exception as e:
-                        logger.warning(f"Error looking up/creating planting method '{pm_value}': {str(e)}")
+                    logger.warning(f"Planting method ID {farm_data['planting_method_id']} not found")
+                    planting_method_str = ''
             
-            # CRITICAL FIX: Find or create CropType that matches BOTH crop name AND plantation data
-            # This prevents multiple farms with same crop but different plantation data from overwriting each other
+            # Normalize choice values
+            # Map common variations to standard choice values
+            plantation_type_mapping = {
+                'adsali': 'adsali',
+                'suru': 'suru',
+                'ratoon': 'ratoon',
+                'pre-seasonal': 'pre-seasonal',
+                'pre_seasonal': 'pre_seasonal',
+                'post-seasonal': 'post-seasonal',
+                'post_seasonal': 'post-seasonal',
+            }
+            
+            planting_method_mapping = {
+                '3_bud': '3_bud',
+                '2_bud': '2_bud',
+                '1_bud': '1_bud',
+                '1_bud_stip_Method': '1_bud_stip_Method',
+                '1_bud_stip_method': '1_bud_stip_Method',
+            }
+            
+            # Normalize plantation_type
+            if plantation_type_str:
+                plantation_type_str = plantation_type_str.lower().strip()
+                plantation_type_str = plantation_type_mapping.get(plantation_type_str, plantation_type_str)
+                # Validate against choices
+                valid_plantation_types = ['adsali', 'suru', 'ratoon', 'pre-seasonal', 'pre_seasonal', 'post-seasonal', 'other']
+                if plantation_type_str not in valid_plantation_types:
+                    plantation_type_str = 'other'
+            else:
+                plantation_type_str = ''
+            
+            # Normalize planting_method
+            if planting_method_str:
+                planting_method_str = planting_method_str.lower().strip()
+                planting_method_str = planting_method_mapping.get(planting_method_str, planting_method_str)
+                # Validate against choices
+                valid_planting_methods = ['3_bud', '2_bud', '1_bud', '1_bud_stip_Method', 'other']
+                if planting_method_str not in valid_planting_methods:
+                    planting_method_str = 'other'
+            else:
+                planting_method_str = ''
+            
+            # Find or create CropType that matches BOTH crop name AND plantation data
             crop_type_name = farm_data['crop_type_name']
             
-            if plantation_type or planting_method:
-                # Look for existing CropType with same name AND plantation data
-                crop_type = CropType.objects.filter(
-                    crop_type=crop_type_name,
-                    plantation_type=plantation_type,
-                    planting_method=planting_method
-                ).first()
-                
-                if not crop_type:
-                    # Create new CropType with plantation data
-                    crop_type = CropType.objects.create(
-                        crop_type=crop_type_name,
-                        plantation_type=plantation_type,
-                        planting_method=planting_method
-                    )
-                    logger.info(f"Created CropType '{crop_type_name}' with plantation_type={plantation_type}, planting_method={planting_method}")
-                else:
-                    # Ensure plantation data is set (in case it was None before)
-                    if crop_type.plantation_type != plantation_type or crop_type.planting_method != planting_method:
-                        crop_type.plantation_type = plantation_type
-                        crop_type.planting_method = planting_method
-                        crop_type.save()
-                        logger.info(f"Updated CropType '{crop_type_name}' with plantation data")
+            # Use get_or_create with all fields to ensure uniqueness
+            crop_type, created = CropType.objects.get_or_create(
+                crop_type=crop_type_name,
+                plantation_type=plantation_type_str if plantation_type_str else '',
+                planting_method=planting_method_str if planting_method_str else '',
+                defaults={}
+            )
+            
+            if created:
+                logger.info(f"Created CropType '{crop_type_name}' with plantation_type={plantation_type_str}, planting_method={planting_method_str}")
             else:
-                # No plantation data, use simple get_or_create
-                crop_type, _ = CropType.objects.get_or_create(
-                    crop_type=crop_type_name,
-                    defaults={}
-                )
+                # Ensure plantation data is set (in case it was None before)
+                if crop_type.plantation_type != plantation_type_str or crop_type.planting_method != planting_method_str:
+                    crop_type.plantation_type = plantation_type_str if plantation_type_str else ''
+                    crop_type.planting_method = planting_method_str if planting_method_str else ''
+                    crop_type.save()
+                    logger.info(f"Updated CropType '{crop_type_name}' with plantation data")
         
         # Parse plantation_date if provided
         plantation_date = None

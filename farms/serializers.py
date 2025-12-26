@@ -65,37 +65,14 @@ class PlantingMethodSerializer(serializers.ModelSerializer):
 
 
 class CropTypeSerializer(serializers.ModelSerializer):
-    # Include detailed plantation type and planting method data (nested)
-    # Use simplified serializers to avoid circular references
-    plantation_type = serializers.SerializerMethodField()
-    planting_method = serializers.SerializerMethodField()
+    # Plantation type and planting method are now CharField with choices
+    plantation_type_display = serializers.CharField(source='get_plantation_type_display', read_only=True)
+    planting_method_display = serializers.CharField(source='get_planting_method_display', read_only=True)
     plantation_date = serializers.SerializerMethodField()
     
     class Meta:
         model = CropType
-        fields = ['id', 'crop_type', 'plantation_type', 'planting_method', 'plantation_date']
-    
-    def get_plantation_type(self, obj):
-        if obj.plantation_type:
-            return {
-                'id': obj.plantation_type.id,
-                'name': obj.plantation_type.name,
-                'code': obj.plantation_type.code,
-                'description': obj.plantation_type.description,
-                'is_active': obj.plantation_type.is_active
-            }
-        return None
-    
-    def get_planting_method(self, obj):
-        if obj.planting_method:
-            return {
-                'id': obj.planting_method.id,
-                'name': obj.planting_method.name,
-                'code': obj.planting_method.code,
-                'description': obj.planting_method.description,
-                'is_active': obj.planting_method.is_active
-            }
-        return None
+        fields = ['id', 'crop_type', 'plantation_type', 'plantation_type_display', 'planting_method', 'planting_method_display', 'plantation_date']
     
     def get_plantation_date(self, obj):
         # Get plantation_date from the parent Farm instance passed through context

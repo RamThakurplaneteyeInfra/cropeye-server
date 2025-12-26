@@ -100,28 +100,40 @@ class PlantingMethod(models.Model):
 class CropType(models.Model):
     """
     Crop types (e.g., Sugarcane, Wheat, Rice, etc.)
-    Can be linked to PlantationType and PlantingMethod
+    Uses CharField with choices for plantation_type and planting_method
     """
+    PLANTATION_TYPE_CHOICES = [
+        ('adsali',         'Adsali'),
+        ('suru',           'Suru'),
+        ('ratoon',         'Ratoon'),
+        ('pre-seasonal',   'Pre-Seasonal'),
+        ('post-seasonal',  'Post-Seasonal'),
+        ('pre_seasonal',   'Pre-Seasonal'),  # Alternative spelling
+        ('other',          'Other'),
+    ]
+    PLANTATION_METHOD_CHOICES = [
+        ('3_bud',           '3 Bud Method'),
+        ('2_bud',           '2 Bud Method'),
+        ('1_bud',           '1 Bud Method'),
+        ('1_bud_stip_Method','1 Bud (stip Method)'),
+        ('other',           'Other'),
+    ]
+
     crop_type = models.CharField(
         max_length=100,
         blank=True,
         help_text="Name of the crop type"
     )
-    # ForeignKey fields (migration 0006 applied)
-    plantation_type = models.ForeignKey(
-        'PlantationType',
-        on_delete=models.SET_NULL,
-        null=True,
+    plantation_type = models.CharField(
+        max_length=100,
+        choices=PLANTATION_TYPE_CHOICES,
         blank=True,
-        related_name='crop_types',
         help_text="Plantation type for this crop"
     )
-    planting_method = models.ForeignKey(
-        'PlantingMethod',
-        on_delete=models.SET_NULL,
-        null=True,
+    planting_method = models.CharField(
+        max_length=100,
+        choices=PLANTATION_METHOD_CHOICES,
         blank=True,
-        related_name='crop_types',
         help_text="Planting method for this crop"
     )
     created_at = models.DateTimeField(auto_now_add=True)
