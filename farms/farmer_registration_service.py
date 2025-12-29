@@ -32,6 +32,14 @@ class CompleteFarmerRegistrationService:
             Dictionary with created objects and their IDs
         """
         try:
+            # Debug: Log incoming data structure
+            logger.info(f"register_complete_farmer called with data keys: {list(data.keys())}")
+            if 'plot' in data:
+                logger.info(f"Single plot format - plot keys: {list(data.get('plot', {}).keys())}")
+                logger.info(f"Boundary in data['plot']: {'boundary' in data.get('plot', {})}, value: {data.get('plot', {}).get('boundary')}")
+            if 'plots' in data:
+                logger.info(f"Multiple plots format - {len(data.get('plots', []))} plots")
+            
             # Step 1: Create Farmer (User)
             farmer = CompleteFarmerRegistrationService._create_farmer(data.get('farmer', {}), field_officer)
 
@@ -41,17 +49,23 @@ class CompleteFarmerRegistrationService:
 
             # Support single plot registration for backward compatibility
             if 'plot' in data and not plots_data:
+                plot_data_dict = data.get('plot', {})
+                logger.info(f"Converting single plot format - plot_data keys: {list(plot_data_dict.keys())}")
+                logger.info(f"Boundary in single plot data: {'boundary' in plot_data_dict}, value: {plot_data_dict.get('boundary')}")
                 plots_data.append({
-                    'plot': data.get('plot'),
+                    'plot': plot_data_dict,
                     'farm': data.get('farm'),
                     'irrigation': data.get('irrigation')
                 })
 
-            for entity_data in plots_data:
+            for idx, entity_data in enumerate(plots_data):
                 plot = None
                 if entity_data.get('plot'):
+                    plot_data_to_create = entity_data['plot']
+                    logger.info(f"Processing plot {idx+1} - plot_data keys: {list(plot_data_to_create.keys())}")
+                    logger.info(f"Boundary in entity_data['plot']: {'boundary' in plot_data_to_create}, value type: {type(plot_data_to_create.get('boundary'))}, value: {plot_data_to_create.get('boundary')}")
                     plot = CompleteFarmerRegistrationService._create_plot(
-                        entity_data['plot'], farmer, field_officer
+                        plot_data_to_create, farmer, field_officer
                     )
 
                 farm = None
@@ -217,6 +231,10 @@ class CompleteFarmerRegistrationService:
         if not plot_data:
             return None
         
+        # Debug: Log what plot_data contains at the start of _create_plot
+        logger.info(f"_create_plot called - plot_data keys: {list(plot_data.keys())}")
+        logger.info(f"Boundary in plot_data: {'boundary' in plot_data}, value type: {type(plot_data.get('boundary'))}, value: {plot_data.get('boundary')}")
+        
         # Validate required fields
         required_fields = ['gat_number', 'village', 'district', 'state']
         for field in required_fields:
@@ -258,8 +276,8 @@ class CompleteFarmerRegistrationService:
         if plot_data.get('location'):
             try:
                 location_geom = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
-                    plot_data['location']
-                )
+                plot_data['location']
+            )
                 if location_geom:
                     plot.location = location_geom
                     logger.info(f"Set plot location: {location_geom}")
@@ -270,9 +288,10 @@ class CompleteFarmerRegistrationService:
         # Boundary (Polygon) - IMPORTANT: Only set if explicitly provided
         if 'boundary' in plot_data and plot_data.get('boundary') is not None:
             try:
+                logger.info(f"Processing boundary data: {type(plot_data['boundary'])}")
                 boundary_geom = CompleteFarmerRegistrationService._convert_geojson_to_geometry(
-                    plot_data['boundary']
-                )
+                plot_data['boundary']
+            )
                 if boundary_geom:
                     # Validate it's actually a polygon
                     if boundary_geom.geom_type != 'Polygon':
@@ -281,12 +300,16 @@ class CompleteFarmerRegistrationService:
                     plot.boundary = boundary_geom
                     logger.info(f"Set plot boundary: {boundary_geom.geom_type} with {len(boundary_geom.coords[0])} points")
                 else:
-                    # Explicitly set to None if empty/null boundary provided
+                    # Explicitly set to None if conversion returned None
                     plot.boundary = None
-                    logger.info("Boundary explicitly set to None")
+                    logger.warning("Boundary conversion returned None, setting boundary to None")
             except Exception as e:
-                logger.error(f"Error setting plot boundary: {str(e)}")
+                logger.error(f"Error setting plot boundary: {str(e)}", exc_info=True)
+                # Don't fail the entire registration if boundary is invalid, just log it
+                # But still raise the error so user knows about it
                 raise serializers.ValidationError(f"Invalid boundary geometry: {str(e)}")
+        else:
+            logger.info(f"Boundary not provided in plot_data (boundary key present: {'boundary' in plot_data}, value: {plot_data.get('boundary')})")
         # If boundary is not in plot_data at all, leave it as None (don't create default)
         
         plot.save()
@@ -336,8 +359,12 @@ class CompleteFarmerRegistrationService:
         elif farm_data.get('crop_type_name'):
             # Get plantation_type and planting_method as strings (choice values)
             # Support both direct string values and backward compatibility with IDs
-            plantation_type_str = farm_data.get('plantation_type', '')
-            planting_method_str = farm_data.get('planting_method', '')
+            plantation_type_str = farm_data.get('plantation_type') or ''
+            planting_method_str = farm_data.get('planting_method') or ''
+            
+            # Debug logging
+            logger.info(f"Received plantation_type: {farm_data.get('plantation_type')}, planting_method: {farm_data.get('planting_method')}")
+            logger.info(f"Initial values - plantation_type_str: '{plantation_type_str}', planting_method_str: '{planting_method_str}'")
             
             # If IDs are provided (backward compatibility), try to get the code/name
             if farm_data.get('plantation_type_id'):
@@ -345,6 +372,7 @@ class CompleteFarmerRegistrationService:
                     from .models import PlantationType
                     pt_obj = PlantationType.objects.get(id=farm_data['plantation_type_id'])
                     plantation_type_str = pt_obj.code if pt_obj.code else pt_obj.name
+                    logger.info(f"Resolved plantation_type from ID: '{plantation_type_str}'")
                 except PlantationType.DoesNotExist:
                     logger.warning(f"Plantation type ID {farm_data['plantation_type_id']} not found")
                     plantation_type_str = ''
@@ -354,6 +382,7 @@ class CompleteFarmerRegistrationService:
                     from .models import PlantingMethod
                     pm_obj = PlantingMethod.objects.get(id=farm_data['planting_method_id'])
                     planting_method_str = pm_obj.code if pm_obj.code else pm_obj.name
+                    logger.info(f"Resolved planting_method from ID: '{planting_method_str}'")
                 except PlantingMethod.DoesNotExist:
                     logger.warning(f"Planting method ID {farm_data['planting_method_id']} not found")
                     planting_method_str = ''
@@ -374,67 +403,99 @@ class CompleteFarmerRegistrationService:
                 '3_bud': '3_bud',
                 '2_bud': '2_bud',
                 '1_bud': '1_bud',
-                '1_bud_stip_Method': '1_bud_stip_Method',
                 '1_bud_stip_method': '1_bud_stip_Method',
+                '1_bud_stip_Method': '1_bud_stip_Method',
+                'other': 'other',
             }
             
             # Normalize plantation_type
             if plantation_type_str:
-                plantation_type_str = plantation_type_str.lower().strip()
+                plantation_type_str = str(plantation_type_str).lower().strip()
                 plantation_type_str = plantation_type_mapping.get(plantation_type_str, plantation_type_str)
                 # Validate against choices
                 valid_plantation_types = ['adsali', 'suru', 'ratoon', 'pre-seasonal', 'pre_seasonal', 'post-seasonal', 'other']
                 if plantation_type_str not in valid_plantation_types:
+                    logger.warning(f"Invalid plantation_type '{plantation_type_str}', defaulting to 'other'")
                     plantation_type_str = 'other'
             else:
-                plantation_type_str = ''
+                plantation_type_str = ''  # Empty string for blank=True CharField
             
             # Normalize planting_method
             if planting_method_str:
-                planting_method_str = planting_method_str.lower().strip()
+                planting_method_str = str(planting_method_str).lower().strip()
                 planting_method_str = planting_method_mapping.get(planting_method_str, planting_method_str)
                 # Validate against choices
                 valid_planting_methods = ['3_bud', '2_bud', '1_bud', '1_bud_stip_Method', 'other']
                 if planting_method_str not in valid_planting_methods:
+                    logger.warning(f"Invalid planting_method '{planting_method_str}', defaulting to 'other'")
                     planting_method_str = 'other'
             else:
-                planting_method_str = ''
+                planting_method_str = ''  # Empty string for blank=True CharField
+            
+            logger.info(f"Final normalized values - plantation_type: '{plantation_type_str}', planting_method: '{planting_method_str}'")
             
             # Find or create CropType that matches BOTH crop name AND plantation data
             crop_type_name = farm_data['crop_type_name']
             
             # Use get_or_create with all fields to ensure uniqueness
             crop_type, created = CropType.objects.get_or_create(
-                crop_type=crop_type_name,
+                    crop_type=crop_type_name,
                 plantation_type=plantation_type_str if plantation_type_str else '',
                 planting_method=planting_method_str if planting_method_str else '',
                 defaults={}
-            )
+                    )
             
             if created:
                 logger.info(f"Created CropType '{crop_type_name}' with plantation_type={plantation_type_str}, planting_method={planting_method_str}")
-            else:
-                # Ensure plantation data is set (in case it was None before)
+                else:
+                    # Ensure plantation data is set (in case it was None before)
                 if crop_type.plantation_type != plantation_type_str or crop_type.planting_method != planting_method_str:
                     crop_type.plantation_type = plantation_type_str if plantation_type_str else ''
                     crop_type.planting_method = planting_method_str if planting_method_str else ''
-                    crop_type.save()
-                    logger.info(f"Updated CropType '{crop_type_name}' with plantation data")
+                        crop_type.save()
+                        logger.info(f"Updated CropType '{crop_type_name}' with plantation data")
         
         # Parse plantation_date if provided
         plantation_date = None
-        if farm_data.get('plantation_date'):
+        plantation_date_input = farm_data.get('plantation_date')
+        logger.info(f"Received plantation_date: {plantation_date_input} (type: {type(plantation_date_input)})")
+        
+        if plantation_date_input:
             try:
                 from datetime import datetime
                 # Handle string date format (YYYY-MM-DD)
-                if isinstance(farm_data['plantation_date'], str):
-                    plantation_date = datetime.strptime(farm_data['plantation_date'], '%Y-%m-%d').date()
+                if isinstance(plantation_date_input, str):
+                    # Try multiple date formats
+                    date_formats = ['%Y-%m-%d', '%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y', '%m-%d-%Y', '%m/%d/%Y']
+                    plantation_date = None
+                    for date_format in date_formats:
+                        try:
+                            plantation_date = datetime.strptime(plantation_date_input.strip(), date_format).date()
+                            logger.info(f"Successfully parsed plantation_date '{plantation_date_input}' using format '{date_format}'")
+                            break
+                        except ValueError:
+                            continue
+                    
+                    if plantation_date is None:
+                        raise ValueError(f"Could not parse date '{plantation_date_input}' with any known format")
+                elif hasattr(plantation_date_input, 'date'):  # datetime object
+                    plantation_date = plantation_date_input.date() if hasattr(plantation_date_input, 'date') else plantation_date_input
+                elif isinstance(plantation_date_input, type(None)):
+                    plantation_date = None
                 else:
                     # Already a date object
-                    plantation_date = farm_data['plantation_date']
+                    plantation_date = plantation_date_input
+                    logger.info(f"Using plantation_date as date object: {plantation_date}")
             except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid plantation_date format: {farm_data.get('plantation_date')}. Error: {str(e)}")
+                logger.error(f"Invalid plantation_date format: {plantation_date_input}. Error: {str(e)}", exc_info=True)
                 plantation_date = None
+        else:
+            logger.info("No plantation_date provided in farm_data")
+        
+        # Get crop_variety if provided
+        crop_variety = farm_data.get('crop_variety', '').strip() if farm_data.get('crop_variety') else None
+        if crop_variety == '':
+            crop_variety = None
         
         # Create farm
         farm = Farm.objects.create(
@@ -447,10 +508,11 @@ class CompleteFarmerRegistrationService:
             crop_type=crop_type,
             plantation_date=plantation_date,
             spacing_a=farm_data.get('spacing_a'),
-            spacing_b=farm_data.get('spacing_b')
+            spacing_b=farm_data.get('spacing_b'),
+            crop_variety=crop_variety
         )
         
-        logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username} with plantation_date: {plantation_date}")
+        logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username} with plantation_date: {plantation_date}, crop_variety: {crop_variety}")
         return farm
     
     @staticmethod
@@ -588,18 +650,34 @@ class CompleteFarmerRegistrationService:
                     
                     # Validate polygon ring structure
                     # Polygon coordinates should be: [[[lng, lat], [lng, lat], ...]]
-                    if not isinstance(coordinates[0], list) or len(coordinates[0]) < 4:
-                        raise ValueError("Polygon must have at least 4 points (first and last must be the same)")
+                    if not isinstance(coordinates[0], list) or len(coordinates[0]) < 3:
+                        raise ValueError("Polygon must have at least 3 points")
+                    
+                    # Create a copy of the coordinates to avoid modifying the original
+                    coordinates_copy = json.loads(json.dumps(coordinates))
                     
                     # Ensure first and last points are the same (closed ring)
-                    first_ring = coordinates[0]
-                    if first_ring[0] != first_ring[-1]:
-                        # Auto-close the polygon by adding the first point at the end
-                        first_ring.append(first_ring[0])
-                        logger.info("Auto-closed polygon ring (first and last points were different)")
+                    first_ring = coordinates_copy[0]
+                    if len(first_ring) > 0:
+                        # Compare coordinate values (lists), not references
+                        first_point = first_ring[0]
+                        last_point = first_ring[-1]
+                        # Check if first and last points are different
+                        if (isinstance(first_point, list) and isinstance(last_point, list) and
+                            len(first_point) >= 2 and len(last_point) >= 2 and
+                            (first_point[0] != last_point[0] or first_point[1] != last_point[1])):
+                            # Auto-close the polygon by adding a copy of the first point at the end
+                            first_ring.append(first_point[:])  # Create a copy of the first point
+                            logger.info("Auto-closed polygon ring (first and last points were different)")
+                    
+                    # Create a new GeoJSON dict with the modified coordinates
+                    polygon_geojson = {
+                        'type': 'Polygon',
+                        'coordinates': coordinates_copy
+                    }
                     
                     # Convert to GEOSGeometry
-                    geojson_string = json.dumps(geojson_data)
+                    geojson_string = json.dumps(polygon_geojson)
                     geometry = GEOSGeometry(geojson_string, srid=4326)
                     
                     # Validate the geometry
@@ -608,14 +686,15 @@ class CompleteFarmerRegistrationService:
                         # Try to fix invalid geometry
                         try:
                             geometry = geometry.buffer(0)  # Buffer(0) can fix some invalid geometries
-                        except:
-                            pass
+                        except Exception as fix_error:
+                            logger.error(f"Could not fix invalid geometry: {str(fix_error)}")
+                            raise ValueError(f"Invalid polygon geometry: {geometry.valid_reason}")
                     
                     return geometry
                 
                 else:
                     # For other geometry types (LineString, MultiPoint, etc.), use generic conversion
-                    geojson_string = json.dumps(geojson_data)
+                geojson_string = json.dumps(geojson_data)
                     return GEOSGeometry(geojson_string, srid=4326)
             
             else:

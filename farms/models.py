@@ -428,6 +428,14 @@ class Farm(models.Model):
                                         null=True, blank=True,
                                         help_text="Spacing B in meters")
     
+    # Crop variety field
+    crop_variety  = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        help_text="Crop variety (e.g., Co 86032, Co 8371, etc.)"
+    )
+    
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
 

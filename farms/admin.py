@@ -41,7 +41,7 @@ class PlantationTypeInline(admin.TabularInline):
 
 @admin.register(CropType)
 class CropTypeAdmin(IndustryFilteredAdmin):
-    list_display = ('crop_type', 'industry', 'plantation_type_display', 'planting_method_display')
+    list_display = ('crop_type', 'industry', 'plantation_type_display', 'planting_method_display', 'plantation_date_display')
     list_filter = ('industry', 'plantation_type', 'planting_method')
     search_fields = ('crop_type',)
     change_form_template = 'admin/farms/croptype/change_form.html'
@@ -67,6 +67,20 @@ class CropTypeAdmin(IndustryFilteredAdmin):
         return obj.get_planting_method_display() if obj.planting_method else '-'
     planting_method_display.short_description = 'Planting Method'
     planting_method_display.admin_order_field = 'planting_method'
+    
+    def plantation_date_display(self, obj):
+        """Display the most recent plantation date from related farms"""
+        # Get the most recent farm with a plantation date for this crop type
+        most_recent_farm = obj.farm_set.filter(plantation_date__isnull=False).order_by('-plantation_date').first()
+        if most_recent_farm:
+            most_recent = most_recent_farm.plantation_date
+            # Count total farms with this crop type
+            total_farms = obj.farm_set.count()
+            if total_farms > 1:
+                return f"{most_recent} (most recent of {total_farms} farms)"
+            return str(most_recent)
+        return '-'
+    plantation_date_display.short_description = 'Plantation Date'
 
 
 @admin.register(PlantationType)
@@ -155,11 +169,12 @@ class FarmAdmin(admin.ModelAdmin):
         'area_size',
         'soil_type',
         'crop_type',
+        'plantation_date',
         'get_created_by_email',
         'created_at',
     )
     list_filter = ('industry', 'soil_type', 'crop_type', 'created_at', 'created_by')
-    search_fields = ('farm_owner__username', 'farm_uid', 'address', 'created_by__email', 'industry__name')
+    search_fields = ('farm_owner__username', 'farm_uid', 'address', 'created_by__email', 'industry__name', 'crop_variety')
     readonly_fields = ('farm_uid', 'created_at', 'updated_at')
 
     inlines = [
@@ -178,8 +193,14 @@ class FarmAdmin(admin.ModelAdmin):
                 'area_size',
                 'soil_type',
                 'crop_type',
+                'crop_variety',
+                'plantation_date',
                 'farm_document',
             )
+        }),
+        ('Plantation Details', {
+            'fields': ('spacing_a', 'spacing_b'),
+            'classes': ('collapse',),
         }),
         ('Metadata', {
             'fields': ('farm_uid', 'created_by', 'created_at', 'updated_at'),

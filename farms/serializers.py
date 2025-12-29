@@ -478,6 +478,7 @@ class FarmSerializer(serializers.ModelSerializer):
             'plantation_date',
             'spacing_a',
             'spacing_b',
+            'crop_variety',
             'plants_in_field',
             'created_at',
             'updated_at',
