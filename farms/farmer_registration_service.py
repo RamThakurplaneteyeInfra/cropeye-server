@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Farm, Plot, SoilType, CropType, IrrigationType
+from users.multi_tenant_utils import get_user_industry
 import logging
 
 logger = logging.getLogger(__name__)
@@ -254,6 +255,9 @@ class CompleteFarmerRegistrationService:
                 f"Plot GAT {plot_data['gat_number']} in {plot_data['village']} already exists"
             )
         
+        # Get industry from field officer
+        industry = get_user_industry(field_officer) if field_officer else None
+        
         # Create plot (skip FastAPI sync during unified registration)
         plot = Plot(
             gat_number=plot_data['gat_number'],
@@ -265,7 +269,8 @@ class CompleteFarmerRegistrationService:
             country=plot_data.get('country', 'India'),
             pin_code=plot_data.get('pin_code', ''),
             farmer=farmer,  # Auto-assign to farmer
-            created_by=field_officer
+            created_by=field_officer,
+            industry=industry  # Assign industry from field officer
         )
         
         # Skip FastAPI sync during unified registration
@@ -437,23 +442,33 @@ class CompleteFarmerRegistrationService:
             # Find or create CropType that matches BOTH crop name AND plantation data
             crop_type_name = farm_data['crop_type_name']
             
-            # Use get_or_create with all fields to ensure uniqueness
+            # Get industry from field officer
+            industry = get_user_industry(field_officer) if field_officer else None
+            
+            # Use get_or_create with all fields to ensure uniqueness (including industry)
             crop_type, created = CropType.objects.get_or_create(
-                    crop_type=crop_type_name,
+                crop_type=crop_type_name,
                 plantation_type=plantation_type_str if plantation_type_str else '',
                 planting_method=planting_method_str if planting_method_str else '',
+                industry=industry,
                 defaults={}
-                    )
+            )
             
             if created:
-                logger.info(f"Created CropType '{crop_type_name}' with plantation_type={plantation_type_str}, planting_method={planting_method_str}")
-                else:
-                    # Ensure plantation data is set (in case it was None before)
+                logger.info(f"Created CropType '{crop_type_name}' with plantation_type={plantation_type_str}, planting_method={planting_method_str}, industry={industry}")
+            else:
+                # Ensure plantation data and industry are set (in case they were None before)
+                needs_update = False
                 if crop_type.plantation_type != plantation_type_str or crop_type.planting_method != planting_method_str:
                     crop_type.plantation_type = plantation_type_str if plantation_type_str else ''
                     crop_type.planting_method = planting_method_str if planting_method_str else ''
-                        crop_type.save()
-                        logger.info(f"Updated CropType '{crop_type_name}' with plantation data")
+                    needs_update = True
+                if crop_type.industry != industry:
+                    crop_type.industry = industry
+                    needs_update = True
+                if needs_update:
+                    crop_type.save()
+                    logger.info(f"Updated CropType '{crop_type_name}' with plantation data and industry")
         
         # Parse plantation_date if provided
         plantation_date = None
@@ -497,6 +512,9 @@ class CompleteFarmerRegistrationService:
         if crop_variety == '':
             crop_variety = None
         
+        # Get industry from field officer
+        industry = get_user_industry(field_officer) if field_officer else None
+        
         # Create farm
         farm = Farm.objects.create(
             address=farm_data['address'],
@@ -509,7 +527,8 @@ class CompleteFarmerRegistrationService:
             plantation_date=plantation_date,
             spacing_a=farm_data.get('spacing_a'),
             spacing_b=farm_data.get('spacing_b'),
-            crop_variety=crop_variety
+            crop_variety=crop_variety,
+            industry=industry  # Assign industry from field officer
         )
         
         logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username} with plantation_date: {plantation_date}, crop_variety: {crop_variety}")
