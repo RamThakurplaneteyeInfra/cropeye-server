@@ -713,7 +713,7 @@ class CompleteFarmerRegistrationService:
                 
                 else:
                     # For other geometry types (LineString, MultiPoint, etc.), use generic conversion
-                geojson_string = json.dumps(geojson_data)
+                    geojson_string = json.dumps(geojson_data)
                     return GEOSGeometry(geojson_string, srid=4326)
             
             else:
