@@ -1,16 +1,19 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Booking, BookingComment, BookingAttachment
-from users.serializers import IndustrySerializer, RoleSerializer
-from users.models import Industry, Role
+from users.serializers import IndustrySerializer
+from users.models import Industry
 
 User = get_user_model()
 
+# ---------------- User Serializer ----------------
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'first_name', 'last_name')
 
+
+# ---------------- Booking Comment Serializer ----------------
 class BookingCommentSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
 
@@ -19,6 +22,14 @@ class BookingCommentSerializer(serializers.ModelSerializer):
         fields = ('id', 'user', 'content', 'created_at', 'updated_at')
         read_only_fields = ('created_at', 'updated_at')
 
+
+class BookingCommentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingComment
+        fields = ('content',)
+
+
+# ---------------- Booking Attachment Serializer ----------------
 class BookingAttachmentSerializer(serializers.ModelSerializer):
     uploaded_by = UserSerializer(read_only=True)
 
@@ -27,23 +38,54 @@ class BookingAttachmentSerializer(serializers.ModelSerializer):
         fields = ('id', 'file', 'uploaded_by', 'uploaded_at', 'description')
         read_only_fields = ('uploaded_at',)
 
+
+class BookingAttachmentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BookingAttachment
+        fields = ('file', 'description')
+
+
+# ---------------- Booking Serializers ----------------
+
+# GET / List / Retrieve
 class BookingSerializer(serializers.ModelSerializer):
+    # Frontend expects these exact names
+    item_name = serializers.CharField(source="title", read_only=True)
+    user_role = serializers.CharField(source="booking_type", read_only=True)
+
     created_by = UserSerializer(read_only=True)
     approved_by = UserSerializer(read_only=True)
     industry = IndustrySerializer(read_only=True)
-    user_role = RoleSerializer(read_only=True)
     comments = BookingCommentSerializer(many=True, read_only=True)
     attachments = BookingAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Booking
-        fields = ('id', 'title', 'item_name', 'description', 'booking_type', 'status',
-                 'start_date', 'end_date', 'industry', 'user_role', 'created_by', 'approved_by',
-                 'created_at', 'updated_at', 'comments', 'attachments')
-        read_only_fields = ('created_at', 'updated_at', 'approved_by', 'industry', 'user_role')
+        fields = (
+            'id',
+            'item_name',
+            'user_role',
+            'start_date',
+            'end_date',
+            'status',
+            'created_by',
+            'approved_by',
+            'industry',
+            'created_at',
+            'updated_at',
+            'comments',
+            'attachments',
+        )
+        read_only_fields = ('created_at', 'updated_at', 'approved_by', 'industry')
 
+
+# POST / Create
 class BookingCreateSerializer(serializers.ModelSerializer):
-    # Industry is optional - will be auto-assigned from user if not provided
+    # Frontend fields
+    item_name = serializers.CharField(source="title", required=True)
+    user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=True)
+
+    # Optional industry assignment
     industry_id = serializers.PrimaryKeyRelatedField(
         source='industry',
         queryset=Industry.objects.all(),
@@ -51,40 +93,42 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         allow_null=True,
         write_only=True
     )
-    # User role is optional
-    user_role_id = serializers.PrimaryKeyRelatedField(
-        source='user_role',
-        queryset=Role.objects.all(),
-        required=False,
-        allow_null=True,
-        write_only=True
-    )
 
     class Meta:
         model = Booking
-        fields = ('title', 'item_name', 'description', 'booking_type', 'start_date', 'end_date', 'industry_id', 'user_role_id', 'status')
+        fields = (
+            'item_name',
+            'user_role',
+            'start_date',
+            'end_date',
+            'status',
+            'industry_id',
+        )
 
+
+# PUT / PATCH
 class BookingUpdateSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source="title", required=False)
+    user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=False)
+
     class Meta:
         model = Booking
-        fields = ('title', 'item_name', 'description', 'booking_type', 'start_date', 'end_date')
+        fields = (
+            'item_name',
+            'user_role',
+            'start_date',
+            'end_date',
+            'status',
+        )
 
+
+# PATCH Status only
 class BookingStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = ('status',)
 
     def validate(self, attrs):
-        if attrs['status'] not in ['approved', 'rejected', 'completed', 'cancelled']:
+        if attrs['status'] not in ['approved', 'rejected', 'completed', 'cancelled', 'available', 'book', 'pending']:
             raise serializers.ValidationError({'status': 'Invalid status for this action.'})
         return attrs
-
-class BookingCommentCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BookingComment
-        fields = ('content',)
-
-class BookingAttachmentCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BookingAttachment
-        fields = ('file', 'description') 
