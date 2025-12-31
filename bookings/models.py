@@ -31,7 +31,7 @@ class Booking(models.Model):
         help_text="Industry this booking belongs to"
     )
     
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, blank=True, null=True)  # <-- Made optional
     item_name = models.CharField(max_length=200, blank=True, verbose_name="Item Name", help_text="Name of the item being booked")
     description = models.TextField(blank=True)
     booking_type = models.CharField(max_length=20, choices=BOOKING_TYPES, blank=True, null=True)
@@ -62,7 +62,7 @@ class Booking(models.Model):
         ]
 
     def __str__(self):
-        display_name = self.item_name or self.title
+        display_name = self.item_name or self.title or "No Title"
         return f"{display_name} - {self.get_status_display()}"
 
     def clean(self):
@@ -75,6 +75,7 @@ class Booking(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+
 class BookingComment(models.Model):
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='comments')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -86,7 +87,8 @@ class BookingComment(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Comment by {self.user.username} on {self.booking.title}"
+        return f"Comment by {self.user.username} on {self.booking.title or 'No Title'}"
+
 
 class BookingAttachment(models.Model):
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='attachments')
@@ -96,4 +98,4 @@ class BookingAttachment(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Attachment for {self.booking.title}"
+        return f"Attachment for {self.booking.title or 'No Title'}"

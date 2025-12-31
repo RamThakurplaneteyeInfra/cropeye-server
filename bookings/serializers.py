@@ -81,8 +81,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
 # POST / Create
 class BookingCreateSerializer(serializers.ModelSerializer):
-    # Frontend fields
-    item_name = serializers.CharField(source="title", required=True)
+    # Make title optional (frontend sends item_name)
+    item_name = serializers.CharField(source="title", required=False, allow_blank=True)
     user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=True)
 
     # Optional industry assignment
@@ -108,7 +108,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
 # PUT / PATCH
 class BookingUpdateSerializer(serializers.ModelSerializer):
-    item_name = serializers.CharField(source="title", required=False)
+    item_name = serializers.CharField(source="title", required=False, allow_blank=True)
     user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=False)
 
     class Meta:
