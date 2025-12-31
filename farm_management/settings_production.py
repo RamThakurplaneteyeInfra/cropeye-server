@@ -235,6 +235,11 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
 
+# Mailgun Configuration for OTP emails
+MAILGUN_API_KEY = os.environ.get('MAILGUN_API_KEY', '')
+MAILGUN_DOMAIN = os.environ.get('MAILGUN_DOMAIN', '')
+MAILGUN_FROM_EMAIL = os.environ.get('MAILGUN_FROM_EMAIL', DEFAULT_FROM_EMAIL)
+
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 

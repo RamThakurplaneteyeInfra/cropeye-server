@@ -22,7 +22,6 @@ class Booking(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
-    # Multi-tenant: Industry association
     industry = models.ForeignKey(
         'users.Industry',
         on_delete=models.CASCADE,
@@ -67,25 +66,10 @@ class Booking(models.Model):
         return f"{display_name} - {self.get_status_display()}"
 
     def clean(self):
-        # Handle both DateField and DateTimeField for backward compatibility
-        start = self.start_date
-        end = self.end_date
-        
-        if start and end:
-            # Convert DateTimeField to date if needed
-            if hasattr(start, 'date'):
-                start = start.date()
-            if hasattr(end, 'date'):
-                end = end.date()
-                
-            if end <= start:
+        # Validate that end_date is after start_date
+        if self.start_date and self.end_date:
+            if self.end_date <= self.start_date:
                 raise ValidationError('End date must be after start date')
-            
-            # Only validate past dates if both dates are set and we're not in admin add form
-            # Allow past dates for historical bookings or rescheduling
-            # Remove this validation or make it optional based on your business logic
-            # if self.start_date < timezone.now():
-            #     raise ValidationError('Start date cannot be in the past')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -112,4 +96,4 @@ class BookingAttachment(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Attachment for {self.booking.title}" 
+        return f"Attachment for {self.booking.title}"

@@ -15,12 +15,14 @@ from users.multi_tenant_utils import filter_by_industry, get_user_industry
 
 class IsAdminOrManager(permissions.BasePermission):
     """
-    Custom permission to only allow admin and manager users to perform certain actions.
+    Custom permission to allow admin, manager, and field officer users to perform certain actions.
     """
     def has_permission(self, request, view):
-        return request.user and (
+        return request.user and request.user.is_authenticated and (
             request.user.is_superuser or 
-            request.user.role in ['admin', 'manager']
+            request.user.has_role('owner') or
+            request.user.has_role('manager') or
+            request.user.has_role('fieldofficer')
         )
 
 class InventoryItemViewSet(viewsets.ModelViewSet):

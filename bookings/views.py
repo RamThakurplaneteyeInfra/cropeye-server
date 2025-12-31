@@ -88,8 +88,8 @@ class BookingViewSet(viewsets.ModelViewSet):
                 Q(description__icontains=search)
             )
         
-        # Additional filtering for non-admin users
-        if not (user.is_superuser or user.has_role('owner') or user.has_role('manager')):
+        # Additional filtering for non-admin/manager/field officer users
+        if not (user.is_superuser or user.has_role('owner') or user.has_role('manager') or user.has_role('fieldofficer')):
             # Regular users can only see their own bookings
             qs = qs.filter(created_by=user)
         

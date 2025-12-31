@@ -5,6 +5,7 @@ from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.core.mail import send_mail
+from .mailgun_service import MailgunEmailService
 from django.conf import settings
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -208,7 +209,7 @@ class LoginView(APIView):
 
 class PasswordResetRequestView(APIView):
     """
-    Request password reset - sends reset token to user's email
+    Request password reset - sends OTP code to user's email via Mailgun
     """
     permission_classes = [permissions.AllowAny]
     
@@ -226,7 +227,7 @@ class PasswordResetRequestView(APIView):
             if not user:
                 # For security, don't reveal if email exists or not
                 return Response({
-                    'detail': 'If the email exists, a password reset link has been sent.'
+                    'detail': 'If the email exists, a password reset OTP has been sent to your email.'
                 }, status=status.HTTP_200_OK)
             
             # Check if user is active
@@ -235,78 +236,55 @@ class PasswordResetRequestView(APIView):
                     'detail': 'Account is deactivated'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Generate secure reset token
-            reset_token = self._generate_reset_token()
+            # Generate 6-digit OTP
+            otp_code = self._generate_otp()
             
-            # Save token and timestamp
-            user.password_reset_token = reset_token
+            # Save OTP and timestamp (store in password_reset_token field for compatibility)
+            user.password_reset_token = otp_code
             user.password_reset_token_created_at = timezone.now()
-            user.save(update_fields=['password_reset_token', 'password_reset_token_created_at'])
+            user.otp = otp_code
+            user.otp_created_at = timezone.now()
+            user.otp_delivery_method = 'email'
+            user.save(update_fields=['password_reset_token', 'password_reset_token_created_at', 'otp', 'otp_created_at', 'otp_delivery_method'])
             
-            # Send email with reset link
-            self._send_password_reset_email(user, reset_token)
+            # Send OTP email via Mailgun
+            mailgun_service = MailgunEmailService()
+            result = mailgun_service.send_otp_email(user, otp_code, purpose='password_reset')
+            
+            if not result.get('success'):
+                logger.error(f"Failed to send password reset OTP via Mailgun: {result.get('error')}")
+                # Still return success to user for security (don't reveal email delivery failure)
             
             return Response({
-                'detail': 'If the email exists, a password reset link has been sent.',
-                'message': 'Check your email for password reset instructions.'
+                'detail': 'If the email exists, a password reset OTP has been sent to your email.',
+                'message': 'Check your email for the OTP code. The OTP will expire in 10 minutes.'
             })
             
         except Exception as e:
+            logger.error(f"Password reset request error: {str(e)}", exc_info=True)
             return Response({
                 'detail': f'Password reset request error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def _generate_reset_token(self):
-        """Generate a secure random token"""
-        alphabet = string.ascii_letters + string.digits
-        return ''.join(secrets.choice(alphabet) for _ in range(32))
-    
-    def _send_password_reset_email(self, user, reset_token):
-        """Send password reset email"""
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
-        
-        subject = 'Password Reset Request - Farm Management System'
-        message = f"""
-Hello {user.first_name or user.username},
-
-You have requested to reset your password for the Farm Management System.
-
-Click the link below to reset your password:
-{reset_url}
-
-This link will expire in 1 hour for security reasons.
-
-If you did not request this password reset, please ignore this email.
-
-Best regards,
-Farm Management System Team
-        """
-        
-        try:
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            print(f"Failed to send password reset email: {e}")
+    def _generate_otp(self):
+        """Generate a 6-digit OTP code"""
+        return ''.join(secrets.choice(string.digits) for _ in range(6))
 
 
 class PasswordResetConfirmView(APIView):
     """
-    Confirm password reset with token and new password
+    Confirm password reset with OTP and new password
     """
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        token = request.data.get('token')
+        email = request.data.get('email')
+        otp = request.data.get('otp')
         new_password = request.data.get('new_password')
         
-        if not token or not new_password:
+        if not email or not otp or not new_password:
             return Response({
-                'detail': 'Token and new password are required'
+                'detail': 'Email, OTP, and new password are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         if len(new_password) < 8:
@@ -315,27 +293,41 @@ class PasswordResetConfirmView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Find user with valid token
-            user = User.objects.filter(
-                password_reset_token=token,
-                password_reset_token_created_at__isnull=False
-            ).first()
+            # Find user by email
+            user = User.objects.filter(email=email).first()
             
             if not user:
                 return Response({
-                    'detail': 'Invalid or expired reset token'
+                    'detail': 'Invalid email or OTP'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Check if token is expired (1 hour)
-            token_age = timezone.now() - user.password_reset_token_created_at
-            if token_age > timedelta(hours=1):
-                # Clear expired token
+            # Verify OTP (check otp field first, fallback to password_reset_token for compatibility)
+            stored_otp = user.otp or user.password_reset_token
+            if not stored_otp or stored_otp != otp:
+                return Response({
+                    'detail': 'Invalid OTP code'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if OTP is expired (10 minutes)
+            if user.otp_created_at:
+                otp_age = timezone.now() - user.otp_created_at
+            elif user.password_reset_token_created_at:
+                otp_age = timezone.now() - user.password_reset_token_created_at
+            else:
+                return Response({
+                    'detail': 'Invalid or expired OTP'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if otp_age > timedelta(minutes=10):
+                # Clear expired OTP
+                user.otp = None
+                user.otp_created_at = None
                 user.password_reset_token = None
                 user.password_reset_token_created_at = None
-                user.save(update_fields=['password_reset_token', 'password_reset_token_created_at'])
+                user.save(update_fields=['otp', 'otp_created_at', 'password_reset_token', 'password_reset_token_created_at'])
                 
                 return Response({
-                    'detail': 'Reset token has expired. Please request a new one.'
+                    'detail': 'OTP has expired. Please request a new one.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if user is active
@@ -347,11 +339,14 @@ class PasswordResetConfirmView(APIView):
             # Set new password
             user.set_password(new_password)
             
-            # Clear reset token
+            # Clear OTP and reset token
+            user.otp = None
+            user.otp_created_at = None
             user.password_reset_token = None
             user.password_reset_token_created_at = None
+            user.otp_delivery_method = None
             
-            user.save(update_fields=['password', 'password_reset_token', 'password_reset_token_created_at'])
+            user.save(update_fields=['password', 'otp', 'otp_created_at', 'password_reset_token', 'password_reset_token_created_at', 'otp_delivery_method'])
             
             return Response({
                 'detail': 'Password has been reset successfully',
@@ -359,6 +354,7 @@ class PasswordResetConfirmView(APIView):
             })
             
         except Exception as e:
+            logger.error(f"Password reset confirm error: {str(e)}", exc_info=True)
             return Response({
                 'detail': f'Password reset error: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
