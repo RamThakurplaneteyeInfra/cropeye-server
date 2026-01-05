@@ -658,6 +658,7 @@ class FarmImage(models.Model):
     uploaded_at  = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+<<<<<<< HEAD
         return f"{self.farm.farm_uid_str()} – {self.title}"
     
 class GrapseReport(models.Model):
@@ -698,3 +699,6 @@ class GrapseReport(models.Model):
 
     def __str__(self):
         return f"{self.plot} – {self.get_file_type_display()} – {self.uploaded_at.date()}"
+=======
+        return f"{self.farm.farm_uid_str()} – {self.title}"
+>>>>>>> 13a0b6b (Initial commit)

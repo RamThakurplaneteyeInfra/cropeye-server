@@ -98,4 +98,8 @@ class BookingAttachment(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+<<<<<<< HEAD
         return f"Attachment for {self.booking.title or 'No Title'}"
+=======
+        return f"Attachment for {self.booking.title or 'No Title'}"
+>>>>>>> 13a0b6b (Initial commit)

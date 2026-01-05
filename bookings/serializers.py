@@ -2,7 +2,11 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Booking, BookingComment, BookingAttachment
 from users.serializers import IndustrySerializer
+<<<<<<< HEAD
 from users.models import Industry, Role
+=======
+from users.models import Industry
+>>>>>>> 13a0b6b (Initial commit)
 
 User = get_user_model()
 
@@ -51,8 +55,12 @@ class BookingAttachmentCreateSerializer(serializers.ModelSerializer):
 class BookingSerializer(serializers.ModelSerializer):
     # Frontend expects these exact names
     item_name = serializers.CharField(source="title", read_only=True)
+<<<<<<< HEAD
     user_role = serializers.CharField(source="user_role.name", read_only=True)
     booking_type = serializers.CharField(read_only=True)
+=======
+    user_role = serializers.CharField(source="booking_type", read_only=True)
+>>>>>>> 13a0b6b (Initial commit)
 
     created_by = UserSerializer(read_only=True)
     approved_by = UserSerializer(read_only=True)
@@ -66,7 +74,10 @@ class BookingSerializer(serializers.ModelSerializer):
             'id',
             'item_name',
             'user_role',
+<<<<<<< HEAD
             'booking_type',
+=======
+>>>>>>> 13a0b6b (Initial commit)
             'start_date',
             'end_date',
             'status',
@@ -85,9 +96,13 @@ class BookingSerializer(serializers.ModelSerializer):
 class BookingCreateSerializer(serializers.ModelSerializer):
     # Make title optional (frontend sends item_name)
     item_name = serializers.CharField(source="title", required=False, allow_blank=True)
+<<<<<<< HEAD
     # Accept user_role as role name (owner, manager, fieldofficer, farmer, vendor) and map to user_role ForeignKey
     user_role = serializers.CharField(write_only=True, required=True)
     booking_type = serializers.ChoiceField(choices=Booking.BOOKING_TYPES, required=False, allow_blank=True, allow_null=True)
+=======
+    user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=True)
+>>>>>>> 13a0b6b (Initial commit)
 
     # Optional industry assignment
     industry_id = serializers.PrimaryKeyRelatedField(
@@ -103,13 +118,17 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         fields = (
             'item_name',
             'user_role',
+<<<<<<< HEAD
             'booking_type',
+=======
+>>>>>>> 13a0b6b (Initial commit)
             'start_date',
             'end_date',
             'status',
             'industry_id',
         )
 
+<<<<<<< HEAD
     def validate_user_role(self, value):
         """Validate that the role name exists"""
         valid_roles = ['owner', 'manager', 'fieldofficer', 'farmer', 'vendor']
@@ -132,25 +151,35 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         validated_data['user_role'] = role
         return super().create(validated_data)
 
+=======
+>>>>>>> 13a0b6b (Initial commit)
 
 # PUT / PATCH
 class BookingUpdateSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source="title", required=False, allow_blank=True)
+<<<<<<< HEAD
     # Accept user_role as role name (owner, manager, fieldofficer, farmer, vendor) and map to user_role ForeignKey
     user_role = serializers.CharField(write_only=True, required=False)
     booking_type = serializers.ChoiceField(choices=Booking.BOOKING_TYPES, required=False, allow_blank=True, allow_null=True)
+=======
+    user_role = serializers.ChoiceField(source="booking_type", choices=Booking.BOOKING_TYPES, required=False)
+>>>>>>> 13a0b6b (Initial commit)
 
     class Meta:
         model = Booking
         fields = (
             'item_name',
             'user_role',
+<<<<<<< HEAD
             'booking_type',
+=======
+>>>>>>> 13a0b6b (Initial commit)
             'start_date',
             'end_date',
             'status',
         )
 
+<<<<<<< HEAD
     def validate_user_role(self, value):
         """Validate that the role name exists"""
         if value:

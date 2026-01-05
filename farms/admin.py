@@ -411,6 +411,7 @@ class FarmIrrigationAdmin(LeafletGeoAdmin):
             )
         }),
         ('Geographic', {'fields': ('location',)}),
+<<<<<<< HEAD
     )
 
 @admin.register(GrapseReport)
@@ -421,3 +422,6 @@ class GrapseReportAdmin(admin.ModelAdmin):
 
     # Only show these fields in the admin form
     fields = ('plot', 'file_type', 'file', 'uploaded_by', 'notes')
+=======
+    )
+>>>>>>> 13a0b6b (Initial commit)
