@@ -20,6 +20,16 @@ class InventoryItem(models.Model):
         ('expired', 'Expired'),
     ]
     
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='inventory_items',
+        help_text="Industry this inventory item belongs to"
+    )
+    
     item_name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     quantity = models.IntegerField()
@@ -92,3 +102,56 @@ class InventoryTransaction(models.Model):
         self.inventory_item.save()
         
         super().save(*args, **kwargs)
+
+class Stock(models.Model):
+    """
+    Stock model for Add New Stock form - matches the screenshot requirements
+    """
+    ITEM_TYPE_CHOICES = [
+        ('logistic', 'Logistic'),
+        ('transport', 'Transport'),
+        ('equipment', 'Equipment'),
+        ('office_purpose', 'Office Purpose'),
+        ('storage', 'Storage'),
+        ('processing', 'Processing'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('working', 'Working'),
+        ('not_working', 'Not working'),
+        ('under_repair', 'underRepair'),
+    ]
+    
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='stocks',
+        help_text="Industry this stock item belongs to"
+    )
+    
+    item_name = models.CharField(max_length=200, verbose_name="Item Name")
+    item_type = models.CharField(max_length=50, choices=ITEM_TYPE_CHOICES, default='logistic', verbose_name="Item Type")
+    make = models.CharField(max_length=200, blank=True, verbose_name="Make")
+    year_of_make = models.CharField(max_length=10, blank=True, null=True, verbose_name="Year of Make")
+    estimate_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Estimate Cost")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='working', verbose_name="Status")
+    remark = models.TextField(blank=True, verbose_name="Remark")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_stocks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Stock"
+        verbose_name_plural = "Stocks"
+        indexes = [
+            models.Index(fields=['item_type']),
+            models.Index(fields=['status']),
+            models.Index(fields=['item_name']),
+        ]
+    
+    def __str__(self):
+        return f"{self.item_name} - {self.get_item_type_display()}"

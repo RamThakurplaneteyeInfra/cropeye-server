@@ -7,7 +7,8 @@ class CanManageBookings(permissions.BasePermission):
             request.user.is_authenticated and
             (request.user.is_superuser or
              request.user.has_role('owner') or
-             request.user.has_role('manager'))
+             request.user.has_role('manager') or
+             request.user.has_role('fieldofficer'))
         )
 
 class CanViewBookings(permissions.BasePermission):

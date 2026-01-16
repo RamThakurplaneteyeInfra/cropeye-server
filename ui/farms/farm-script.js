@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const API_FARM_PLOTS = `${API_BASE_URL}/farm-plots/`;
     const API_SOIL_TYPES = `${API_BASE_URL}/soil-types/`;
     const API_CROP_TYPES = `${API_BASE_URL}/crop-types/`;
+    const API_PLANTATION_TYPES = `${API_BASE_URL}/farms/plantation-types/`;
+    const API_PLANTING_METHODS = `${API_BASE_URL}/farms/planting-methods/`;
     
     // Token from localStorage
     const token = localStorage.getItem('access_token');
@@ -45,6 +47,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load reference data
     loadSoilTypes();
+    loadPlantationTypes();
+    loadPlantingMethods();
     
     // Event Listeners
     formTabs.forEach(tab => {
@@ -97,6 +101,22 @@ document.addEventListener('DOMContentLoaded', function() {
         spacingAInput.addEventListener('input', calculatePlants);
         spacingBInput.addEventListener('input', calculatePlants);
         areaSizeInput.addEventListener('input', calculatePlants);
+    }
+    
+    // Add Plantation Type button
+    const addPlantationTypeBtn = document.getElementById('add-plantation-type-btn');
+    if (addPlantationTypeBtn) {
+        addPlantationTypeBtn.addEventListener('click', function() {
+            showAddPlantationTypeModal();
+        });
+    }
+    
+    // Add Planting Method button
+    const addPlantingMethodBtn = document.getElementById('add-planting-method-btn');
+    if (addPlantingMethodBtn) {
+        addPlantingMethodBtn.addEventListener('click', function() {
+            showAddPlantingMethodModal();
+        });
     }
     
     // Irrigation Type Change Handler
@@ -316,6 +336,186 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error loading soil types:', error);
             alert('Failed to load soil types. Please try again later.');
+        });
+    }
+    
+    // Load plantation types into dropdown
+    function loadPlantationTypes() {
+        const select = document.getElementById('plantation-type');
+        if (!select) return;
+        
+        fetch(`${API_PLANTATION_TYPES}?active_only=true`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch plantation types: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            select.innerHTML = '<option value="">Select Plantation Type</option>';
+            const results = Array.isArray(data) ? data : (data.results || []);
+            results.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.code || item.name.toLowerCase().replace(/\s+/g, '_');
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading plantation types:', error);
+        });
+    }
+    
+    // Load planting methods into dropdown
+    function loadPlantingMethods() {
+        const select = document.getElementById('planting-method');
+        if (!select) return;
+        
+        fetch(`${API_PLANTING_METHODS}?active_only=true`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch planting methods: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            select.innerHTML = '<option value="">Select Planting Method</option>';
+            const results = Array.isArray(data) ? data : (data.results || []);
+            results.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.code || item.name.toLowerCase().replace(/\s+/g, '_');
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading planting methods:', error);
+        });
+    }
+    
+    // Function to show Add Plantation Type modal
+    function showAddPlantationTypeModal() {
+        const name = prompt('Enter Plantation Type Name:');
+        if (!name || name.trim() === '') return;
+        
+        const code = prompt('Enter Plantation Type Code (optional):', name.toLowerCase().replace(/\s+/g, '_'));
+        if (code === null) return;
+        
+        const description = prompt('Enter Description (optional):') || '';
+        
+        // Call API to create plantation type
+        fetch(API_PLANTATION_TYPES, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name.trim(),
+                code: code ? code.trim() : '',
+                description: description.trim(),
+                is_active: true
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    throw new Error(JSON.stringify(errorData));
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.id) {
+                alert('Plantation Type added successfully!');
+                loadPlantationTypes(); // Reload the dropdown
+            } else {
+                alert('Error: ' + (data.error || 'Failed to add plantation type'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            try {
+                const errorData = JSON.parse(error.message);
+                let errorMessages = '';
+                for (const field in errorData) {
+                    if (Array.isArray(errorData[field])) {
+                        errorMessages += `${field}: ${errorData[field].join(', ')}\n`;
+                    } else {
+                        errorMessages += `${field}: ${errorData[field]}\n`;
+                    }
+                }
+                alert(`Failed to add plantation type:\n${errorMessages}`);
+            } catch (e) {
+                alert('Failed to add plantation type. Please try again.');
+            }
+        });
+    }
+    
+    // Function to show Add Planting Method modal
+    function showAddPlantingMethodModal() {
+        const name = prompt('Enter Planting Method Name:');
+        if (!name || name.trim() === '') return;
+        
+        const code = prompt('Enter Planting Method Code (optional):', name.toLowerCase().replace(/\s+/g, '_'));
+        if (code === null) return;
+        
+        const description = prompt('Enter Description (optional):') || '';
+        
+        // Call API to create planting method
+        fetch(API_PLANTING_METHODS, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name.trim(),
+                code: code ? code.trim() : '',
+                description: description.trim(),
+                is_active: true
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    throw new Error(JSON.stringify(errorData));
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.id) {
+                alert('Planting Method added successfully!');
+                loadPlantingMethods(); // Reload the dropdown
+            } else {
+                alert('Error: ' + (data.error || 'Failed to add planting method'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            try {
+                const errorData = JSON.parse(error.message);
+                let errorMessages = '';
+                for (const field in errorData) {
+                    if (Array.isArray(errorData[field])) {
+                        errorMessages += `${field}: ${errorData[field].join(', ')}\n`;
+                    } else {
+                        errorMessages += `${field}: ${errorData[field]}\n`;
+                    }
+                }
+                alert(`Failed to add planting method:\n${errorMessages}`);
+            } catch (e) {
+                alert('Failed to add planting method. Please try again.');
+            }
         });
     }
     

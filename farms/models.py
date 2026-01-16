@@ -15,13 +15,100 @@ class SoilType(models.Model):
         return self.name
 
 
+class PlantationType(models.Model):
+    """
+    Industry-specific plantation types (e.g., Adsali, Suru, Ratoon, Kharif, Rabi, etc.)
+    """
+    crop_type = models.ForeignKey(
+        'CropType',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plantation_types',
+        help_text="Crop type this plantation type belongs to"
+    )
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plantation_types',
+        help_text="Industry this plantation type belongs to"
+    )
+    name = models.CharField(max_length=100, help_text="Plantation type name (e.g., Adsali, Suru, Kharif)")
+    code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Short code for this plantation type (used in CropType.plantation_type field)"
+    )
+    description = models.TextField(blank=True, help_text="Description of this plantation type")
+    is_active = models.BooleanField(default=True, help_text="Whether this plantation type is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['crop_type', 'industry', 'code']]  # Same code can't exist twice for same crop and industry
+        ordering = ['name']
+
+    def __str__(self):
+        crop_name = self.crop_type.crop_type if self.crop_type else "No Crop"
+        industry_name = self.industry.name if self.industry else "Global"
+        return f"{self.name} ({crop_name} - {industry_name})"
+
+
+class PlantingMethod(models.Model):
+    """
+    Industry-specific planting methods (e.g., 3 Bud Method, 2 Bud Method, Broadcast, etc.)
+    """
+    plantation_type = models.ForeignKey(
+        'PlantationType',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='planting_methods',
+        help_text="Plantation type this planting method belongs to"
+    )
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='planting_methods',
+        help_text="Industry this planting method belongs to"
+    )
+    name = models.CharField(max_length=100, help_text="Planting method name (e.g., 3 Bud Method, Broadcast)")
+    code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Short code for this planting method (used in CropType.planting_method field)"
+    )
+    description = models.TextField(blank=True, help_text="Description of this planting method")
+    is_active = models.BooleanField(default=True, help_text="Whether this planting method is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [['plantation_type', 'industry', 'code']]  # Same code can't exist twice for same plantation type and industry
+        ordering = ['name']
+
+    def __str__(self):
+        plantation_name = self.plantation_type.name if self.plantation_type else "No Plantation"
+        industry_name = self.industry.name if self.industry else "Global"
+        return f"{self.name} ({plantation_name} - {industry_name})"
+
+
 class CropType(models.Model):
+    """
+    Crop types (e.g., Sugarcane, Wheat, Rice, etc.)
+    Uses CharField with choices for plantation_type and planting_method
+    """
     PLANTATION_TYPE_CHOICES = [
         ('adsali',         'Adsali'),
         ('suru',           'Suru'),
         ('ratoon',         'Ratoon'),
         ('pre-seasonal',   'Pre-Seasonal'),
         ('post-seasonal',  'Post-Seasonal'),
+        ('pre_seasonal',   'Pre-Seasonal'),  # Alternative spelling
         ('other',          'Other'),
     ]
     PLANTATION_METHOD_CHOICES = [
@@ -32,9 +119,39 @@ class CropType(models.Model):
         ('other',           'Other'),
     ]
 
-    crop_type        = models.CharField(max_length=100, blank=True)
-    plantation_type  = models.CharField(max_length=100, choices=PLANTATION_TYPE_CHOICES, blank=True)
-    planting_method  = models.CharField(max_length=100, choices=PLANTATION_METHOD_CHOICES, blank=True)
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='crop_types',
+        help_text="Industry this crop type belongs to"
+    )
+    crop_type = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Name of the crop type"
+    )
+    plantation_type = models.CharField(
+        max_length=100,
+        choices=PLANTATION_TYPE_CHOICES,
+        blank=True,
+        help_text="Plantation type for this crop"
+    )
+    planting_method = models.CharField(
+        max_length=100,
+        choices=PLANTATION_METHOD_CHOICES,
+        blank=True,
+        help_text="Planting method for this crop"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['crop_type']
+        verbose_name = 'Crop Type'
+        verbose_name_plural = 'Crop Types'
 
     def __str__(self):
         return self.crop_type or "Unnamed CropType"
@@ -88,6 +205,16 @@ class Plot(models.Model):
     country     = models.CharField(max_length=100, default='India', blank=True)
     pin_code    = models.CharField(max_length=6, blank=True)
 
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='plots',
+        help_text="Industry this plot belongs to"
+    )
+    
     # Auto-assigned farmer (most recent farmer created by field officer)
     farmer      = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -236,6 +363,17 @@ class Plot(models.Model):
 
 class Farm(models.Model):
     farm_uid      = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
+    # Multi-tenant: Industry association
+    industry = models.ForeignKey(
+        'users.Industry',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='farms',
+        help_text="Industry this farm belongs to"
+    )
+    
     farm_owner    = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -289,6 +427,14 @@ class Farm(models.Model):
     spacing_b     = models.DecimalField(max_digits=8, decimal_places=2,
                                         null=True, blank=True,
                                         help_text="Spacing B in meters")
+    
+    # Crop variety field
+    crop_variety  = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        help_text="Crop variety (e.g., Co 86032, Co 8371, etc.)"
+    )
     
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)

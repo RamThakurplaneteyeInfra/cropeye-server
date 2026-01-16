@@ -1,8 +1,12 @@
-databases:
-  # PostgreSQL Database
-  - name: farm-management-db
-    plan: starter
-    region: oregon
+# Note: Using external hosted database instead of Render database
+# If you want to use Render's database service, uncomment the databases section below
+# and change envVars to use fromDatabase instead of value
+
+# databases:
+#   # PostgreSQL Database (uncomment if using Render database)
+#   - name: farm-management-db
+#     plan: starter
+#     region: oregon
 
 services:
   # Redis Cache
@@ -25,26 +29,19 @@ services:
         generateValue: true
       - key: DJANGO_SETTINGS_MODULE
         value: farm_management.settings_production
+      # External hosted database configuration
+      # IMPORTANT: Set these values in Render dashboard Environment tab
+      # Do not commit actual credentials to git
       - key: DB_NAME
-        fromDatabase:
-          name: farm-management-db
-          property: database
+        sync: false # Set manually in Render dashboard
       - key: DB_USER
-        fromDatabase:
-          name: farm-management-db
-          property: user
+        sync: false # Set manually in Render dashboard
       - key: DB_PASSWORD
-        fromDatabase:
-          name: farm-management-db
-          property: password
+        sync: false # Set manually in Render dashboard
       - key: DB_HOST
-        fromDatabase:
-          name: farm-management-db
-          property: host
+        sync: false # Set manually in Render dashboard
       - key: DB_PORT
-        fromDatabase:
-          name: farm-management-db
-          property: port
+        value: "5432"
       - key: REDIS_URL
         fromService:
           type: redis
@@ -61,7 +58,7 @@ services:
           name: farm-management-redis
           property: connectionString
       - key: ALLOWED_HOSTS
-        value: "*.onrender.com,localhost,127.0.0.1"
+        value: "cropeye-server-1.onrender.com,cropeye-server.onrender.com,farm-management-web.onrender.com,localhost,127.0.0.1"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://*.onrender.com,http://localhost:3000"
       - key: EMAIL_HOST

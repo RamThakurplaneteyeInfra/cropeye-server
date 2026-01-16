@@ -8,9 +8,12 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from users.multi_tenant_utils import filter_by_industry, get_user_industry
 from .models import (
     SoilType,
     CropType,
+    PlantationType,
+    PlantingMethod,
     Farm,
     Plot,
     FarmImage,
@@ -20,6 +23,8 @@ from .models import (
 from .serializers import (
     SoilTypeSerializer,
     CropTypeSerializer,
+    PlantationTypeSerializer,
+    PlantingMethodSerializer,
     FarmSerializer,
     FarmWithIrrigationSerializer,
     FarmDetailSerializer,
@@ -66,15 +71,90 @@ class SoilTypeViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
 
-class CropTypeViewSet(viewsets.ModelViewSet):
-    queryset = CropType.objects.all()
-    serializer_class = CropTypeSerializer
+class PlantationTypeViewSet(viewsets.ModelViewSet):
+    queryset = PlantationType.objects.all()
+    serializer_class = PlantationTypeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+        # Filter by plantation_type if provided
+        plantation_type_id = self.request.query_params.get('plantation_type_id')
+        if plantation_type_id:
+            qs = qs.filter(plantation_type_id=plantation_type_id)
+        # Filter by active status if requested
+        if self.request.query_params.get('active_only') == 'true':
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        user_industry = get_user_industry(user)
+        serializer.save(industry=user_industry)
+
+
+class PlantingMethodViewSet(viewsets.ModelViewSet):
+    queryset = PlantingMethod.objects.all()
+    serializer_class = PlantingMethodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+        # Filter by plantation_type if provided
+        plantation_type_id = self.request.query_params.get('plantation_type_id')
+        if plantation_type_id:
+            qs = qs.filter(plantation_type_id=plantation_type_id)
+        # Filter by active status if requested
+        if self.request.query_params.get('active_only') == 'true':
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        user_industry = get_user_industry(user)
+        serializer.save(industry=user_industry)
+
+
+class CropTypeViewSet(viewsets.ModelViewSet):
+    queryset = CropType.objects.all()
+    serializer_class = CropTypeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['industry', 'plantation_type', 'planting_method']
+    search_fields = ['crop_type']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+        return qs
+
+    def perform_create(self, serializer):
+        """Auto-assign industry when creating crop type"""
+        user = self.request.user
+        user_industry = get_user_industry(user)
+        serializer.save(industry=user_industry)
 
 
 class FarmViewSet(viewsets.ModelViewSet):
@@ -101,6 +181,9 @@ class FarmViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
 
         # filter by owner id
         if owner_id := self.request.query_params.get('owner'):
@@ -133,10 +216,6 @@ class FarmViewSet(viewsets.ModelViewSet):
                 Q(address__icontains=search) | Q(farm_owner__username__icontains=search)
             )
 
-        # field officer sees farms they created
-        if user.has_role('fieldofficer'):
-            qs = qs.filter(created_by=user)
-
         return qs
 
     def perform_create(self, serializer):
@@ -147,7 +226,9 @@ class FarmViewSet(viewsets.ModelViewSet):
         if user.has_role('fieldofficer') and not data.get('farm_owner'):
             raise ValidationError("Field Officer must assign a farm_owner.")
 
-        serializer.save(created_by=user)
+        # Assign industry from user
+        user_industry = get_user_industry(user)
+        serializer.save(created_by=user, industry=user_industry)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -202,7 +283,12 @@ class FarmViewSet(viewsets.ModelViewSet):
                     fastapi_plot_id = generate_fastapi_plot_id(plot)
 
                     # Get farm details for this plot
-                    farms = plot.farms.all().select_related('crop_type', 'soil_type').prefetch_related('irrigations__irrigation_type')
+                    # Use select_related to fetch ForeignKey relationships efficiently
+                    farms = plot.farms.all().select_related(
+                        'crop_type', 
+                        'soil_type'
+                    ).prefetch_related('irrigations__irrigation_type')
+                    
                     farm_details = []
 
                     for farm in farms:
@@ -221,14 +307,24 @@ class FarmViewSet(viewsets.ModelViewSet):
                             }
                             irrigation_details.append(irrigation_info)
 
+                        # Get plantation_type and planting_method display names from choice fields
+                        plantation_type_name = None
+                        planting_method_name = None
+                        
+                        if farm.crop_type:
+                            if farm.crop_type.plantation_type:
+                                plantation_type_name = farm.crop_type.get_plantation_type_display()
+                            if farm.crop_type.planting_method:
+                                planting_method_name = farm.crop_type.get_planting_method_display()
+
                         farm_info = {
                             'farm_uid': str(farm.farm_uid),
                             'address': farm.address,
                             'area_size': str(farm.area_size),
                             'soil_type': farm.soil_type.name if farm.soil_type else None,
                             'crop_type': farm.crop_type.crop_type if farm.crop_type else None,
-                            'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
-                            'planting_method': farm.crop_type.get_planting_method_display() if farm.crop_type and farm.crop_type.planting_method else None,
+                            'plantation_type': plantation_type_name,
+                            'planting_method': planting_method_name,
                             'plantation_date': farm.plantation_date.isoformat() if farm.plantation_date else None,
                             'spacing_a': float(farm.spacing_a) if farm.spacing_a else None,
                             'spacing_b': float(farm.spacing_b) if farm.spacing_b else None,
@@ -305,49 +401,92 @@ class FarmViewSet(viewsets.ModelViewSet):
     def register_farmer(self, request):
         """
         Complete farmer registration endpoint - creates farmer, plot, farm, and irrigation in one call
-        Expected JSON structure:
+        Supports both single plot and multiple plots registration.
+        
+        Expected JSON structure (multiple plots):
         {
             "farmer": {
-                "username": "farmer123",
-                "email": "farmer@example.com",
-                "password": "password123",
-                "first_name": "John",
-                "last_name": "Doe",
-                "phone_number": "9876543210",
-                "address": "Village Address",
-                "village": "Village Name",
-                "district": "District Name",
-                "state": "State Name",
-                "taluka": "Taluka Name"
+                "username": "testmulti",
+                "email": "testmulti@example.com",
+                "password": "farm@123",
+                "first_name": "testmulti",
+                "last_name": "Patil",
+                "phone_number": "9870543211",
+                "address": "Main Street",
+                "village": "Test Village",
+                "district": "Test District",
+                "state": "Maharashtra",
+                "taluka": "Test Taluka"
             },
-            "plot": {
-                "gat_number": "GAT001",
-                "plot_number": "PLOT001",
-                "village": "Village Name",
-                "taluka": "Taluka Name",
-                "district": "District Name",
-                "state": "State Name",
-                "country": "India",
-                "pin_code": "123456",
-                "location": {"type": "Point", "coordinates": [lng, lat]},
-                "boundary": {"type": "Polygon", "coordinates": [...]}
-            },
-            "farm": {
-                "address": "Farm Address",
-                "area_size": "10.5",
-                "plantation_date": "2024-01-15",
-                "soil_type_name": "Loamy",
-                "crop_type_name": "Wheat",
-                "plantation_type": "adsali",
-                "planting_method": "3_bud"
-            },
-            "irrigation": {
-                "irrigation_type_name": "Drip",
-                "irrigation_source": "Well",
-                "installation_date": "2024-01-01",
-                "status": true
-            }
+            "plots": [
+                {
+                    "plot": {
+                        "gat_number": "866",
+                        "plot_number": "07",
+                        "village": "Test Village",
+                        "taluka": "Test Taluka",
+                        "district": "Test District",
+                        "state": "Maharashtra",
+                        "country": "India",
+                        "pin_code": "422605",
+                        "location": {"type": "Point", "coordinates": [74.215, 19.567]}
+                    },
+                    "farm": {
+                        "address": "Farm at GAT 866",
+                        "area_size": "2.5",
+                        "spacing_a": "3.0",
+                        "spacing_b": "1.5",
+                        "soil_type_name": "Black Soil",
+                        "crop_type_name": "Sugarcane",
+                        "plantation_type": "adsali"
+                    },
+                    "irrigation": {
+                        "irrigation_type_name": "drip",
+                        "status": true,
+                        "flow_rate_lph": 2.0,
+                        "emitters_count": 120
+                    }
+                },
+                {
+                    "plot": {
+                        "gat_number": "904",
+                        "plot_number": "05",
+                        "village": "Test Village",
+                        "taluka": "Test Taluka",
+                        "district": "Test District",
+                        "state": "Maharashtra",
+                        "country": "India",
+                        "pin_code": "422605",
+                        "location": {"type": "Point", "coordinates": [74.218, 19.569]}
+                    },
+                    "farm": {
+                        "address": "Farm at GAT 907",
+                        "area_size": "3.0",
+                        "spacing_a": "2.0",
+                        "spacing_b": "1.0",
+                        "soil_type_name": "Red Soil",
+                        "crop_type_name": "sugarcane",
+                        "plantation_type": "pre_seasonal"
+                    },
+                    "irrigation": {
+                        "irrigation_type_name": "flood",
+                        "motor_horsepower": 7.5,
+                        "pipe_width_inches": 4.0,
+                        "distance_motor_to_plot_m": 50.0
+                    }
+                }
+            ]
         }
+        
+        For backward compatibility, single plot format is also supported:
+        {
+            "farmer": {...},
+            "plot": {...},
+            "farm": {...},
+            "irrigation": {...}
+        }
+        
+        Note: Irrigation type names should be lowercase: "drip", "flood", "sprinkler", etc.
         """
         user = request.user
 
@@ -637,8 +776,8 @@ class FarmViewSet(viewsets.ModelViewSet):
                             'area_size': str(farm.area_size) if farm.area_size else None,
                             'soil_type': farm.soil_type.name if farm.soil_type else None,
                             'crop_type': farm.crop_type.crop_type if farm.crop_type else None,
-                            'plantation_type': farm.crop_type.plantation_type if farm.crop_type else None,
-                            'planting_method': farm.crop_type.planting_method if farm.crop_type else None,
+                            'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
+                            'planting_method': farm.crop_type.get_planting_method_display() if farm.crop_type and farm.crop_type.planting_method else None,
                             'created_at': farm.created_at.strftime('%Y-%m-%d %H:%M:%S') if farm.created_at else None,
                             'irrigations_count': farm.irrigations.count(),
                         }
@@ -945,6 +1084,9 @@ class PlotViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
 
+        # Apply multi-tenant filtering
+        qs = filter_by_industry(qs, user)
+
         if self.request.query_params.get('my_farms') == 'true':
             qs = qs.filter(farms__farm_owner=user)
 
@@ -955,18 +1097,17 @@ class PlotViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('has_boundary') == 'true':
             qs = qs.filter(boundary__isnull=False)
 
-        if user.has_role('fieldofficer'):
-            qs = qs.filter(farms__created_by=user)
-
         return qs
 
     def perform_create(self, serializer):
         user = self.request.user
+        # Get user's industry
+        user_industry = get_user_industry(user)
         # Set created_by for field officers or admin
         if user.has_any_role(['fieldofficer', 'admin', 'manager']):
-            serializer.save(created_by=user)
+            serializer.save(created_by=user, industry=user_industry)
         else:
-            serializer.save()
+            serializer.save(industry=user_industry)
 
     def perform_update(self, serializer):
         serializer.save()
@@ -1026,7 +1167,9 @@ class PlotViewSet(viewsets.ModelViewSet):
                     'id': farm.id,
                     'plantation_date': farm.plantation_date.isoformat() if farm.plantation_date else None,
                     'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
-                    'plantation_type_code': farm.crop_type.plantation_type if farm.crop_type else None
+                    'plantation_type_code': farm.crop_type.plantation_type if farm.crop_type and farm.crop_type.plantation_type else None,
+                    'planting_method': farm.crop_type.get_planting_method_display() if farm.crop_type and farm.crop_type.planting_method else None,
+                    'planting_method_code': farm.crop_type.planting_method if farm.crop_type and farm.crop_type.planting_method else None
                 }
                 farm_details.append(farm_info)
             

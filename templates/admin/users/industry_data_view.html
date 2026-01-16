@@ -1,0 +1,541 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block title %}{{ industry.name }} - All Data | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:users_industry_changelist' %}">{% trans 'Industries' %}</a>
+    &rsaquo; <a href="{% url 'admin:users_industry_change' industry.id %}">{{ industry.name }}</a>
+    &rsaquo; {% trans 'View All Data' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ industry.name }} - Complete Data Overview</h1>
+
+{% if industry.description %}
+<p><strong>Description:</strong> {{ industry.description }}</p>
+{% endif %}
+
+<div style="margin: 20px 0;">
+    <a href="{% url 'admin:users_industry_change' industry.id %}" class="button">Edit Industry</a>
+    <a href="{% url 'admin:users_industry_changelist' %}" class="button">Back to Industries List</a>
+</div>
+
+<!-- Summary Statistics -->
+<div class="module" style="margin-bottom: 20px;">
+    <h2>Summary Statistics</h2>
+    <table class="table" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 15px; background-color: #417690; color: white; font-weight: bold; font-size: 18px; text-align: center; border: 2px solid #417690;" colspan="4">
+                👥 Total Users: <strong>{% if total_users_count %}{{ total_users_count }}{% else %}{{ owners_count|add:managers_count|add:field_officers_count|add:farmers_count }}{% endif %}</strong>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 10px;">
+                <strong>Owners:</strong> {{ owners_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Managers:</strong> {{ managers_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Field Officers:</strong> {{ field_officers_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Farmers:</strong> {{ farmers_count }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 10px;">
+                <strong>Plots:</strong> {{ plots_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Farms:</strong> {{ farms_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Tasks:</strong> {{ tasks_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Bookings:</strong> {{ bookings_count }}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 10px;">
+                <strong>Inventory Items:</strong> {{ inventory_items_count }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Vendors:</strong> {{ vendors_count|default:"0" }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Stock Items:</strong> {{ stock_items_count|default:"0" }}
+            </td>
+            <td style="padding: 10px;">
+                <strong>Orders:</strong> {{ orders_count|default:"0" }}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- Hierarchy Section -->
+<div class="module">
+    <h2>User Hierarchy</h2>
+    
+    <!-- Owners -->
+    {% if owners %}
+    <div style="margin-bottom: 30px;">
+        <h3>Owners ({{ owners_count }})</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for owner in owners %}
+                <tr>
+                    <td>{{ owner.id }}</td>
+                    <td>{{ owner.username }}</td>
+                    <td>{{ owner.email|default:"-" }}</td>
+                    <td>{{ owner.first_name }} {{ owner.last_name }}</td>
+                    <td>{{ owner.phone_number|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'admin:users_user_change' owner.id %}">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <!-- Managers -->
+    {% if managers %}
+    <div style="margin-bottom: 30px;">
+        <h3>Managers ({{ managers_count }})</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #417690; color: white;">
+                    <th style="padding: 10px; border: 1px solid #ddd;">ID</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Username</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Email</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Name</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Phone</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for manager in managers %}
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ manager.id }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ manager.username }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ manager.email|default:"-" }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ manager.first_name }} {{ manager.last_name }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ manager.phone_number|default:"-" }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">
+                        <a href="{% url 'admin:users_user_change' manager.id %}">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <!-- Field Officers -->
+    {% if field_officers %}
+    <div style="margin-bottom: 30px;">
+        <h3>Field Officers ({{ field_officers_count }})</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #417690; color: white;">
+                    <th style="padding: 10px; border: 1px solid #ddd;">ID</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Username</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Email</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Name</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Phone</th>
+                    <th style="padding: 10px; border: 1px solid #ddd;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fo in field_officers %}
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ fo.id }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ fo.username }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ fo.email|default:"-" }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ fo.first_name }} {{ fo.last_name }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{{ fo.phone_number|default:"-" }}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">
+                        <a href="{% url 'admin:users_user_change' fo.id %}">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <!-- Farmers -->
+    {% if farmers %}
+    <div style="margin-bottom: 30px;">
+        <h3>Farmers ({{ farmers_count }})</h3>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Village</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for farmer in farmers %}
+                <tr>
+                    <td>{{ farmer.id }}</td>
+                    <td>{{ farmer.username }}</td>
+                    <td>{{ farmer.email|default:"-" }}</td>
+                    <td>{{ farmer.first_name }} {{ farmer.last_name }}</td>
+                    <td>{{ farmer.phone_number|default:"-" }}</td>
+                    <td>{{ farmer.village|default:"-" }}</td>
+                    <td>
+                        <a href="{% url 'admin:users_user_change' farmer.id %}">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Plots Section -->
+{% if plots %}
+<div class="module">
+    <h2>Plots ({{ plots_count }})</h2>
+    <p><a href="{% url 'admin:farms_plot_changelist' %}?industry__id__exact={{ industry.id }}">View all plots in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>GAT Number</th>
+                <th>Plot Number</th>
+                <th>Village</th>
+                <th>District</th>
+                <th>Farmer</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for plot in plots|slice:":50" %}
+            <tr>
+                <td>{{ plot.id }}</td>
+                <td>{{ plot.gat_number }}</td>
+                <td>{{ plot.plot_number|default:"-" }}</td>
+                <td>{{ plot.village|default:"-" }}</td>
+                <td>{{ plot.district|default:"-" }}</td>
+                <td>{{ plot.farmer.username|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:farms_plot_change' plot.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if plots_count > 50 %}
+    <p><em>Showing first 50 plots. <a href="{% url 'admin:farms_plot_changelist' %}?industry__id__exact={{ industry.id }}">View all {{ plots_count }} plots</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Farms Section -->
+{% if farms %}
+<div class="module">
+    <h2>Farms ({{ farms_count }})</h2>
+    <p><a href="{% url 'admin:farms_farm_changelist' %}?industry__id__exact={{ industry.id }}">View all farms in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Farm UID</th>
+                <th>Owner</th>
+                <th>Area Size (acres)</th>
+                <th>Crop Type</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for farm in farms|slice:":50" %}
+            <tr>
+                <td>{{ farm.id }}</td>
+                <td>{{ farm.farm_uid }}</td>
+                <td>{{ farm.farm_owner.username }}</td>
+                <td>{{ farm.area_size|default:"-" }}</td>
+                <td>{{ farm.crop_type.crop_type|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:farms_farm_change' farm.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if farms_count > 50 %}
+    <p><em>Showing first 50 farms. <a href="{% url 'admin:farms_farm_changelist' %}?industry__id__exact={{ industry.id }}">View all {{ farms_count }} farms</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Tasks Section -->
+{% if tasks %}
+<div class="module">
+    <h2>Tasks ({{ tasks_count }})</h2>
+    <p><a href="{% url 'admin:tasks_task_changelist' %}?industry__id__exact={{ industry.id }}">View all tasks in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Assigned To</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks|slice:":50" %}
+            <tr>
+                <td>{{ task.id }}</td>
+                <td>{{ task.title }}</td>
+                <td>{{ task.status }}</td>
+                <td>{{ task.priority }}</td>
+                <td>{{ task.assigned_to.username|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:tasks_task_change' task.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if tasks_count > 50 %}
+    <p><em>Showing first 50 tasks. <a href="{% url 'admin:tasks_task_changelist' %}?industry__id__exact={{ industry.id }}">View all {{ tasks_count }} tasks</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Bookings Section -->
+{% if bookings %}
+<div class="module">
+    <h2>Bookings ({{ bookings_count }})</h2>
+    <p><a href="{% url 'admin:bookings_booking_changelist' %}?industry__id__exact={{ industry.id }}">View all bookings in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Start Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for booking in bookings|slice:":50" %}
+            <tr>
+                <td>{{ booking.id }}</td>
+                <td>{{ booking.title }}</td>
+                <td>{{ booking.booking_type }}</td>
+                <td>{{ booking.status }}</td>
+                <td>{{ booking.start_date|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:bookings_booking_change' booking.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if bookings_count > 50 %}
+    <p><em>Showing first 50 bookings. <a href="{% url 'admin:bookings_booking_changelist' %}?industry__id__exact={{ industry.id }}">View all {{ bookings_count }} bookings</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Inventory Items Section -->
+{% if inventory_items %}
+<div class="module">
+    <h2>Inventory Items ({{ inventory_items_count }})</h2>
+    <p><a href="{% url 'admin:inventory_inventoryitem_changelist' %}?industry__id__exact={{ industry.id }}">View all inventory items in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Item Name</th>
+                <th>Quantity</th>
+                <th>Unit</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in inventory_items|slice:":50" %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.item_name }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.unit }}</td>
+                <td>{{ item.category|default:"-" }}</td>
+                <td>{{ item.status }}</td>
+                <td>
+                    <a href="{% url 'admin:inventory_inventoryitem_change' item.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if inventory_items_count > 50 %}
+    <p><em>Showing first 50 inventory items. <a href="{% url 'admin:inventory_inventoryitem_changelist' %}?industry__id__exact={{ industry.id }}">View all {{ inventory_items_count }} items</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Vendors Section -->
+{% if vendors %}
+<div class="module">
+    <h2>Vendors ({{ vendors_count }})</h2>
+    <p><a href="{% url 'admin:vendors_vendor_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all vendors in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Vendor Name</th>
+                <th>Contact Person</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>City</th>
+                <th>State</th>
+                <th>Rating</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vendor in vendors|slice:":50" %}
+            <tr>
+                <td>{{ vendor.id }}</td>
+                <td>{{ vendor.vendor_name }}</td>
+                <td>{{ vendor.contact_person|default:"-" }}</td>
+                <td>{{ vendor.email }}</td>
+                <td>{{ vendor.phone }}</td>
+                <td>{{ vendor.city|default:"-" }}</td>
+                <td>{{ vendor.state|default:"-" }}</td>
+                <td>{{ vendor.get_rating_display|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'admin:vendors_vendor_change' vendor.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if vendors_count > 50 %}
+    <p><em>Showing first 50 vendors. <a href="{% url 'admin:vendors_vendor_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all {{ vendors_count }} vendors</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Stock Items Section -->
+<div class="module">
+    <h2>Stock Items ({{ stock_items_count|default:"0" }})</h2>
+    <p><a href="/admin/inventory/stock/?created_by__industry__id__exact={{ industry.id }}">View all stock items in admin</a></p>
+    {% if stock_items %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Item Name</th>
+                <th>Item Type</th>
+                <th>Make</th>
+                <th>Year of Make</th>
+                <th>Estimate Cost</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stock in stock_items|slice:":50" %}
+            <tr>
+                <td>{{ stock.id }}</td>
+                <td>{{ stock.item_name }}</td>
+                <td>{{ stock.get_item_type_display }}</td>
+                <td>{{ stock.make|default:"-" }}</td>
+                <td>{{ stock.year_of_make|default:"-" }}</td>
+                <td>{{ stock.estimate_cost|default:"-" }}</td>
+                <td>{{ stock.get_status_display }}</td>
+                <td>
+                    <a href="/admin/inventory/stock/{{ stock.id }}/change/">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if stock_items_count > 50 %}
+    <p><em>Showing first 50 stock items. <a href="/admin/inventory/stock/?created_by__industry__id__exact={{ industry.id }}">View all {{ stock_items_count }} stock items</a></em></p>
+    {% endif %}
+    {% else %}
+    <p><em>No stock items found for this industry.</em></p>
+    {% endif %}
+</div>
+
+<!-- Orders Section -->
+{% if orders %}
+<div class="module">
+    <h2>Orders ({{ orders_count }})</h2>
+    <p><a href="{% url 'admin:vendors_order_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all orders in admin</a></p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Vendor</th>
+                <th>Invoice Number</th>
+                <th>Invoice Date</th>
+                <th>State</th>
+                <th>Created By</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders|slice:":50" %}
+            <tr>
+                <td>{{ order.id }}</td>
+                <td>{{ order.vendor.vendor_name }}</td>
+                <td>{{ order.invoice_number }}</td>
+                <td>{{ order.invoice_date|default:"-" }}</td>
+                <td>{{ order.state|default:"-" }}</td>
+                <td>{{ order.created_by.username }}</td>
+                <td>
+                    <a href="{% url 'admin:vendors_order_change' order.id %}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if orders_count > 50 %}
+    <p><em>Showing first 50 orders. <a href="{% url 'admin:vendors_order_changelist' %}?created_by__industry__id__exact={{ industry.id }}">View all {{ orders_count }} orders</a></em></p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not owners and not managers and not field_officers and not farmers and not plots and not farms and not tasks and not bookings and not inventory_items and not vendors and not stock_items and not orders %}
+<div class="module">
+    <p><strong>No data found for this industry.</strong></p>
+</div>
+{% endif %}
+
+{% endblock %}
+

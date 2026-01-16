@@ -7,6 +7,8 @@ import json
 from .models import (
     SoilType,
     CropType,
+    PlantationType,
+    PlantingMethod,
     Farm,
     Plot,
     FarmImage,
@@ -30,16 +32,70 @@ class SoilTypeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'properties']
 
 
+class PlantationTypeSerializer(serializers.ModelSerializer):
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
+    crop_type_id = serializers.PrimaryKeyRelatedField(
+        source='crop_type',
+        queryset=CropType.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = PlantationType
+        fields = ['id', 'industry', 'industry_name', 'crop_type', 'crop_type_id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'crop_type']
+
+
+class PlantingMethodSerializer(serializers.ModelSerializer):
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
+    plantation_type_id = serializers.PrimaryKeyRelatedField(
+        source='plantation_type',
+        queryset=PlantationType.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    
+    class Meta:
+        model = PlantingMethod
+        fields = ['id', 'industry', 'industry_name', 'plantation_type', 'plantation_type_id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'plantation_type']
+
+
 class CropTypeSerializer(serializers.ModelSerializer):
+    # Plantation type and planting method are now CharField with choices
+    plantation_type_display = serializers.CharField(source='get_plantation_type_display', read_only=True)
+    planting_method_display = serializers.CharField(source='get_planting_method_display', read_only=True)
+    plantation_date = serializers.SerializerMethodField()
+    industry_name = serializers.CharField(source='industry.name', read_only=True)
+    
     class Meta:
         model = CropType
-        fields = ['id', 'crop_type', 'plantation_type', 'planting_method']
+        fields = ['id', 'crop_type', 'industry', 'industry_name', 'plantation_type', 'plantation_type_display', 'planting_method', 'planting_method_display', 'plantation_date']
+    
+    def get_plantation_date(self, obj):
+        # Get plantation_date from the parent Farm instance passed through context
+        farm = self.context.get('farm')
+        if farm and hasattr(farm, 'plantation_date'):
+            return farm.plantation_date.isoformat() if farm.plantation_date else None
+        return None
 
 
 class PlotSerializer(serializers.ModelSerializer):
     # Replace read-only method fields with writeable GeometryFields
-    location = GeometryField(required=False, allow_null=True)
-    boundary = GeometryField(required=False, allow_null=True)
+    # GeometryField accepts GeoJSON format: {"type": "Point/Polygon", "coordinates": [...]}
+    location = GeometryField(
+        required=False, 
+        allow_null=True,
+        help_text="Point geometry as GeoJSON: {\"type\": \"Point\", \"coordinates\": [longitude, latitude]}"
+    )
+    boundary = GeometryField(
+        required=False, 
+        allow_null=True,
+        help_text="Polygon geometry as GeoJSON: {\"type\": \"Polygon\", \"coordinates\": [[[lng, lat], [lng, lat], ...]]}"
+    )
     
     # Include farmer and created_by relationships
     farmer = UserSerializer(read_only=True)
@@ -73,6 +129,32 @@ class PlotSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['farmer', 'created_by', 'created_at', 'updated_at']
+    
+    def validate_boundary(self, value):
+        """Validate that boundary is a Polygon if provided"""
+        if value is not None:
+            from django.contrib.gis.geos import GEOSGeometry
+            if hasattr(value, 'geom_type'):
+                if value.geom_type != 'Polygon':
+                    raise serializers.ValidationError(
+                        f"Boundary must be a Polygon geometry, got {value.geom_type}"
+                    )
+            elif isinstance(value, (str, dict)):
+                # If it's still in GeoJSON format, validate it
+                try:
+                    import json
+                    if isinstance(value, dict):
+                        geojson_str = json.dumps(value)
+                    else:
+                        geojson_str = value
+                    geom = GEOSGeometry(geojson_str)
+                    if geom.geom_type != 'Polygon':
+                        raise serializers.ValidationError(
+                            f"Boundary must be a Polygon geometry, got {geom.geom_type}"
+                        )
+                except Exception as e:
+                    raise serializers.ValidationError(f"Invalid boundary geometry: {str(e)}")
+        return value
 
 
 class FarmImageSerializer(serializers.ModelSerializer):
@@ -324,6 +406,18 @@ class FarmWithIrrigationSerializer(serializers.ModelSerializer):
                 )
         
         return farm
+    
+    def to_representation(self, instance):
+        # Override to pass farm instance to CropTypeSerializer
+        representation = super().to_representation(instance)
+        if 'crop_type' in representation and instance.crop_type:
+            # Pass farm instance to crop_type serializer context
+            crop_type_serializer = CropTypeSerializer(
+                instance.crop_type,
+                context={'farm': instance, **self.context}
+            )
+            representation['crop_type'] = crop_type_serializer.data
+        return representation
 
 class FarmSerializer(serializers.ModelSerializer):
     farm_owner = UserSerializer(read_only=True)
@@ -384,6 +478,7 @@ class FarmSerializer(serializers.ModelSerializer):
             'plantation_date',
             'spacing_a',
             'spacing_b',
+            'crop_variety',
             'plants_in_field',
             'created_at',
             'updated_at',
@@ -417,6 +512,18 @@ class FarmSerializer(serializers.ModelSerializer):
         validated_data.setdefault('farm_owner', user)
         # created_by will be set in the view perform_create
         return super().create(validated_data)
+    
+    def to_representation(self, instance):
+        # Override to pass farm instance to CropTypeSerializer
+        representation = super().to_representation(instance)
+        if 'crop_type' in representation and instance.crop_type:
+            # Pass farm instance to crop_type serializer context
+            crop_type_serializer = CropTypeSerializer(
+                instance.crop_type,
+                context={'farm': instance, **self.context}
+            )
+            representation['crop_type'] = crop_type_serializer.data
+        return representation
 
 
 class FarmDetailSerializer(FarmSerializer):

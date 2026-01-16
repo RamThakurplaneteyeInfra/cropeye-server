@@ -15,15 +15,40 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-# Allow Render URLs automatically + environment override
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*.onrender.com,localhost,127.0.0.1')
-ALLOWED_HOSTS = allowed_hosts_env.split(',')
+# ALLOWED_HOSTS - Configure allowed hosts for production
+# For Render deployment, always include Render service domains
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '')
 
-# Add common Render URL patterns if not already included
-render_patterns = ['*.onrender.com', 'cropeye-server-1.onrender.com']
-for pattern in render_patterns:
-    if pattern not in ALLOWED_HOSTS:
-        ALLOWED_HOSTS.append(pattern)
+if allowed_hosts_env == '*' or not allowed_hosts_env:
+    # If '*' or empty, allow all hosts (for development/flexibility)
+    ALLOWED_HOSTS = ['*']
+else:
+    # Parse comma-separated list
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+    
+    # Remove wildcard patterns (Django doesn't support them directly)
+    ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if not h.startswith('*')]
+
+# Always add Render service domains (required for Render deployment)
+# These are added to ensure Render deployment works even if env var is misconfigured
+render_domains = [
+    'cropeye-server-1.onrender.com',  # Your Render service domain
+    'cropeye-server.onrender.com',
+    'farm-management-web.onrender.com',
+]
+
+# Add Render domains if not already present
+# Note: If ALLOWED_HOSTS is ['*'], these aren't needed but adding them doesn't hurt
+for domain in render_domains:
+    if domain not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(domain)
+
+# Also add localhost for health checks (unless ALLOWED_HOSTS is '*')
+if ALLOWED_HOSTS != ['*']:
+    if 'localhost' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('localhost')
+    if '127.0.0.1' not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append('127.0.0.1')
 
 # Application definition
 INSTALLED_APPS = [
@@ -51,7 +76,9 @@ INSTALLED_APPS = [
     'inventory',
     'vendors',
     'farms',
-    # 'chatbotapi',  # Removed - causing deployment issues
+    'messaging',  # Two-way communication system
+    'chatbot',
+    'industries',
 ]
 
 MIDDLEWARE = [
@@ -134,6 +161,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# Custom authentication backend for phone number login
+AUTHENTICATION_BACKENDS = [
+    'users.backends.PhoneNumberBackend',  # Phone number authentication
+    'django.contrib.auth.backends.ModelBackend',  # Fallback to default
+]
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -201,6 +234,11 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+
+# Mailgun Configuration for OTP emails
+MAILGUN_API_KEY = os.environ.get('MAILGUN_API_KEY', '')
+MAILGUN_DOMAIN = os.environ.get('MAILGUN_DOMAIN', '')
+MAILGUN_FROM_EMAIL = os.environ.get('MAILGUN_FROM_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')

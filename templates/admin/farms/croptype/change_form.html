@@ -1,0 +1,91 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        /* Hide the green plus (add) icon from Django admin ForeignKey popup icons */
+        /* Comprehensive selectors to catch all variations */
+        
+        /* Standard Django admin selectors */
+        .related-widget-wrapper .add-related,
+        .related-widget-wrapper a[href*="add/"],
+        .related-lookup a[href*="add/"],
+        .related-widget-wrapper-link[href*="add/"],
+        .add-related,
+        .addlink,
+        a.add-related {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Field-specific hiding */
+        .field-plantation_type .related-widget-wrapper a[href*="add/"],
+        .field-planting_method .related-widget-wrapper a[href*="add/"],
+        .field-crop_type .related-widget-wrapper a[href*="add/"],
+        .field-industry .related-widget-wrapper a[href*="add/"],
+        .field-plantation_type .add-related,
+        .field-planting_method .add-related,
+        .field-crop_type .add-related,
+        .field-industry .add-related {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Hide any button or link immediately after select fields */
+        .field-plantation_type select + a,
+        .field-planting_method select + a,
+        .field-plantation_type select + button,
+        .field-planting_method select + button,
+        .field-plantation_type select ~ a,
+        .field-planting_method select ~ a,
+        .field-plantation_type select ~ button,
+        .field-planting_method select ~ button {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Hide any element with green background or plus sign content */
+        button[style*="green"],
+        a[style*="green"],
+        button[style*="background-color: #"],
+        a[style*="background-color: #"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Hide by href pattern - any link with add in URL */
+        a[href*="/add/"],
+        a[href*="add/"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Hide buttons with add text in title */
+        button[title*="Add"],
+        a[title*="Add"],
+        button[title*="add"],
+        a[title*="add"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+    </style>
+    <script>
+        // Also hide via JavaScript as fallback
+        (function($) {
+            $(document).ready(function() {
+                // Hide any green plus buttons next to select fields
+                $('.field-plantation_type select, .field-planting_method select').each(function() {
+                    $(this).next('a, button').hide();
+                    $(this).siblings('a, button').hide();
+                });
+                
+                // Hide any element with green background
+                $('a[style*="green"], button[style*="green"]').hide();
+                
+                // Hide any link with add in href
+                $('a[href*="add/"]').hide();
+            });
+        })(django.jQuery);
+    </script>
+{% endblock %}

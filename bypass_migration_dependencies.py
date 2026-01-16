@@ -100,7 +100,6 @@ def bypass_migration_dependencies():
                 ('tasks', ['0001_initial']),
                 ('bookings', ['0001_initial']),
                 ('vendors', ['0001_initial']),
-                # ('chatbotapi', ['0001_initial']),  # Removed chatbot app
             ]
             
             for app_name, migrations in migration_apps:

@@ -1,0 +1,680 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <!-- PlantingMethod Admin Template Loaded -->
+    <style>
+        /* Hide the green plus (add) icon from Django admin ForeignKey popup icons */
+        .related-widget-wrapper .add-related,
+        .related-widget-wrapper a[href*="add/"],
+        .related-lookup a[href*="add/"],
+        .related-widget-wrapper-link[href*="add/"],
+        .add-related,
+        .addlink,
+        a.add-related,
+        .field-plantation_type .related-widget-wrapper a[href*="add/"],
+        .field-planting_method .related-widget-wrapper a[href*="add/"],
+        .field-crop_type .related-widget-wrapper a[href*="add/"],
+        .field-industry .related-widget-wrapper a[href*="add/"],
+        .field-plantation_type .add-related,
+        .field-planting_method .add-related,
+        .field-crop_type .add-related,
+        .field-industry .add-related,
+        .field-plantation_type select + a,
+        .field-industry select + a,
+        .field-plantation_type select + button,
+        .field-industry select + button,
+        a[href*="add/"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Icon Button Styles */
+        .field-plantation_type {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .field-plantation_type select {
+            flex: 1;
+        }
+        
+        .field-icon-buttons {
+            display: inline-flex !important;
+            gap: 3px;
+            align-items: center;
+            margin-left: 8px;
+            vertical-align: middle;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative;
+            z-index: 10;
+        }
+        
+        /* Ensure the field row can contain the icons */
+        .field-plantation_type,
+        .form-row.field-plantation_type {
+            position: relative;
+        }
+        
+        .field-plantation_type .related-widget-wrapper,
+        .form-row.field-plantation_type .related-widget-wrapper {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .icon-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            opacity: 0.7;
+            transition: opacity 0.2s, background-color 0.2s;
+            font-size: 14px;
+        }
+        
+        .icon-btn:hover {
+            opacity: 1;
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .icon-btn-edit {
+            color: #417690;
+        }
+        .icon-btn-edit:hover {
+            color: #205067;
+            background-color: rgba(65, 118, 144, 0.1);
+        }
+        
+        .icon-btn-add {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .icon-btn-add:hover {
+            color: #388e3c;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+        
+        .icon-btn-delete {
+            color: #ba2121;
+        }
+        .icon-btn-delete:hover {
+            color: #8b1a1a;
+            background-color: rgba(186, 33, 33, 0.1);
+        }
+        
+        .icon-btn-view {
+            color: #417690;
+        }
+        .icon-btn-view:hover {
+            color: #205067;
+            background-color: rgba(65, 118, 144, 0.1);
+        }
+        
+        /* Modal Styles */
+        .add-item-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 500px;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .modal-body {
+            margin-bottom: 20px;
+        }
+        .modal-body .form-row {
+            margin-bottom: 15px;
+        }
+        .modal-body label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .modal-body input,
+        .modal-body textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .modal-body textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+        .btn-save {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-save:hover {
+            background-color: #388e3c;
+        }
+        .btn-save:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .btn-cancel {
+            background-color: #757575;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-cancel:hover {
+            background-color: #616161;
+        }
+    </style>
+{% endblock %}
+
+{% block admin_change_form_document_ready %}
+    {{ block.super }}
+    <script>
+        (function($) {
+            // Create modal HTML
+            var modalHTML = `
+                <div id="addItemModal" class="add-item-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 id="modalTitle">Add New Plantation Type</h2>
+                            <span class="close">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <form id="addItemForm">
+                                <div class="form-row">
+                                    <label for="modalName">Name *</label>
+                                    <input type="text" id="modalName" name="name" required>
+                                </div>
+                                <div class="form-row">
+                                    <label for="modalCode">Code (optional)</label>
+                                    <input type="text" id="modalCode" name="code">
+                                </div>
+                                <div class="form-row">
+                                    <label for="modalDescription">Description (optional)</label>
+                                    <textarea id="modalDescription" name="description"></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn-cancel" id="modalCancelBtn">Cancel</button>
+                            <button type="button" class="btn-save" id="modalSaveBtn">Save</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('body').append(modalHTML);
+            
+            var modal = $('#addItemModal');
+            var currentSelect = null;
+            var currentItemId = null;
+            
+            // Close modal handlers
+            $('.close, #modalCancelBtn').on('click', function() {
+                modal.hide();
+                resetModal();
+            });
+            
+            $(window).on('click', function(event) {
+                if ($(event.target).is(modal)) {
+                    modal.hide();
+                    resetModal();
+                }
+            });
+            
+            // Save button
+            $('#modalSaveBtn').on('click', function() {
+                if (currentItemId) {
+                    updateItem();
+                } else {
+                    saveItem();
+                }
+            });
+            
+            function resetModal() {
+                $('#addItemForm')[0].reset();
+                currentSelect = null;
+                currentItemId = null;
+                $('#modalSaveBtn').prop('disabled', false).text('Save');
+                $('#modalTitle').text('Add New Plantation Type');
+            }
+            
+            function showModal(select, itemId, itemData) {
+                currentSelect = select;
+                currentItemId = itemId || null;
+                
+                $('#modalTitle').text(currentItemId ? 'Edit Plantation Type' : 'Add New Plantation Type');
+                $('#modalSaveBtn').text(currentItemId ? 'Update' : 'Save');
+                
+                if (itemData) {
+                    $('#modalName').val(itemData.name || '');
+                    $('#modalCode').val(itemData.code || '');
+                    $('#modalDescription').val(itemData.description || '');
+                } else {
+                    $('#addItemForm')[0].reset();
+                }
+                
+                $('#modalName').off('input').on('input', function() {
+                    if (!currentItemId && ! $('#modalCode').val()) {
+                        var name = $(this).val();
+                        $('#modalCode').val(name.toLowerCase().replace(/\s+/g, '_'));
+                    }
+                });
+                
+                modal.show();
+                $('#modalName').focus();
+            }
+            
+            function saveItem() {
+                var name = $('#modalName').val().trim();
+                if (!name) {
+                    alert('Name is required!');
+                    return;
+                }
+                
+                var code = $('#modalCode').val().trim();
+                var description = $('#modalDescription').val().trim();
+                
+                // Get crop_type_id from the form
+                var cropTypeSelect = $('#id_crop_type');
+                var selectedCropOption = cropTypeSelect.find('option:selected');
+                var cropTypeId = selectedCropOption.attr('data-id') || selectedCropOption.val();
+                
+                if (!cropTypeId) {
+                    alert('Please select a Crop Type first.');
+                    return;
+                }
+                
+                var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                $('#modalSaveBtn').prop('disabled', true).text('Saving...');
+                
+                $.ajax({
+                    url: '/api/farms/plantation-types/',
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                        'Content-Type': 'application/json'
+                    },
+                    data: JSON.stringify({
+                        name: name,
+                        code: code || '',
+                        description: description,
+                        crop_type_id: cropTypeId,
+                        is_active: true
+                    }),
+                    success: function(data) {
+                        var codeValue = data.code || data.name.toLowerCase().replace(/\s+/g, '_');
+                        var option = $('<option>')
+                            .attr('value', codeValue)
+                            .attr('data-id', data.id)
+                            .text(data.name)
+                            .prop('selected', true);
+                        currentSelect.append(option);
+                        modal.hide();
+                        resetModal();
+                        alert('Plantation Type added successfully!');
+                    },
+                    error: function(xhr) {
+                        var errorMsg = 'Failed to add item.';
+                        if (xhr.responseJSON) {
+                            errorMsg += '\n' + JSON.stringify(xhr.responseJSON);
+                        }
+                        alert(errorMsg);
+                        $('#modalSaveBtn').prop('disabled', false).text('Save');
+                    }
+                });
+            }
+            
+            function updateItem() {
+                var name = $('#modalName').val().trim();
+                if (!name) {
+                    alert('Name is required!');
+                    return;
+                }
+                
+                var code = $('#modalCode').val().trim();
+                var description = $('#modalDescription').val().trim();
+                var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                
+                $('#modalSaveBtn').prop('disabled', true).text('Updating...');
+                
+                $.ajax({
+                    url: '/api/farms/plantation-types/' + currentItemId + '/',
+                    method: 'PATCH',
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                        'Content-Type': 'application/json'
+                    },
+                    data: JSON.stringify({
+                        name: name,
+                        code: code || '',
+                        description: description
+                    }),
+                    success: function(data) {
+                        var option = currentSelect.find('option[data-id="' + currentItemId + '"]');
+                        if (option.length) {
+                            var codeValue = data.code || data.name.toLowerCase().replace(/\s+/g, '_');
+                            option.attr('value', codeValue).text(data.name);
+                        }
+                        modal.hide();
+                        resetModal();
+                        alert('Plantation Type updated successfully!');
+                    },
+                    error: function(xhr) {
+                        alert('Failed to update item.');
+                        $('#modalSaveBtn').prop('disabled', false).text('Update');
+                    }
+                });
+            }
+            
+            function deleteItem(itemId, select) {
+                if (!confirm('Are you sure you want to delete this item?')) {
+                    return;
+                }
+                
+                var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                
+                $.ajax({
+                    url: '/api/farms/plantation-types/' + itemId + '/',
+                    method: 'DELETE',
+                    headers: {'X-CSRFToken': csrftoken},
+                    success: function() {
+                        select.find('option[data-id="' + itemId + '"]').remove();
+                        alert('Item deleted successfully!');
+                    },
+                    error: function() {
+                        alert('Failed to delete item.');
+                    }
+                });
+            }
+            
+            function viewItem(itemId) {
+                var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                
+                $.ajax({
+                    url: '/api/farms/plantation-types/' + itemId + '/',
+                    method: 'GET',
+                    headers: {'X-CSRFToken': csrftoken},
+                    success: function(data) {
+                        var details = 'Name: ' + data.name + '\n';
+                        details += 'Code: ' + (data.code || 'N/A') + '\n';
+                        details += 'Description: ' + (data.description || 'N/A') + '\n';
+                        details += 'Active: ' + (data.is_active ? 'Yes' : 'No');
+                        alert(details);
+                    },
+                    error: function() {
+                        alert('Failed to load item details.');
+                    }
+                });
+            }
+            
+            function createIconButtons(select) {
+                var iconContainer = $('<div>').addClass('field-icon-buttons');
+                
+                // Edit Icon (Pencil)
+                var editBtn = $('<button>')
+                    .addClass('icon-btn icon-btn-edit')
+                    .attr('type', 'button')
+                    .attr('title', 'Edit selected item')
+                    .html('✎')
+                    .on('click', function() {
+                        var selectedOption = select.find('option:selected');
+                        var itemId = selectedOption.attr('data-id');
+                        if (itemId) {
+                            var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                            $.ajax({
+                                url: '/api/farms/plantation-types/' + itemId + '/',
+                                method: 'GET',
+                                headers: {'X-CSRFToken': csrftoken},
+                                success: function(data) {
+                                    showModal(select, itemId, data);
+                                },
+                                error: function() {
+                                    alert('Failed to load item for editing.');
+                                }
+                            });
+                        } else {
+                            alert('Please select an item to edit.');
+                        }
+                    });
+                
+                // Add Icon (Green Plus)
+                var addBtn = $('<button>')
+                    .addClass('icon-btn icon-btn-add')
+                    .attr('type', 'button')
+                    .attr('title', 'Add new item')
+                    .html('+')
+                    .css('font-size', '18px')
+                    .css('font-weight', 'bold')
+                    .on('click', function() {
+                        showModal(select);
+                    });
+                
+                // Delete Icon (X)
+                var deleteBtn = $('<button>')
+                    .addClass('icon-btn icon-btn-delete')
+                    .attr('type', 'button')
+                    .attr('title', 'Delete selected item')
+                    .html('×')
+                    .css('font-size', '20px')
+                    .on('click', function() {
+                        var selectedOption = select.find('option:selected');
+                        var itemId = selectedOption.attr('data-id');
+                        if (itemId) {
+                            deleteItem(itemId, select);
+                        } else {
+                            alert('Please select an item to delete.');
+                        }
+                    });
+                
+                // View Icon (Eye)
+                var viewBtn = $('<button>')
+                    .addClass('icon-btn icon-btn-view')
+                    .attr('type', 'button')
+                    .attr('title', 'View selected item details')
+                    .html('👁')
+                    .on('click', function() {
+                        var selectedOption = select.find('option:selected');
+                        var itemId = selectedOption.attr('data-id');
+                        if (itemId) {
+                            viewItem(itemId);
+                        } else {
+                            alert('Please select an item to view.');
+                        }
+                    });
+                
+                iconContainer.append(editBtn, addBtn, deleteBtn, viewBtn);
+                return iconContainer;
+            }
+            
+            function loadItemsIntoDropdown(select) {
+                var cropTypeId = null;
+                var cropTypeSelect = $('#id_crop_type');
+                if (cropTypeSelect.length && cropTypeSelect.val()) {
+                    cropTypeId = cropTypeSelect.find('option:selected').attr('data-id') || cropTypeSelect.val();
+                }
+                
+                var url = '/api/farms/plantation-types/?active_only=true';
+                if (cropTypeId) {
+                    url += '&crop_type_id=' + cropTypeId;
+                }
+                
+                var csrftoken = $('[name=csrfmiddlewaretoken]').val() || getCookie('csrftoken');
+                
+                $.ajax({
+                    url: url,
+                    method: 'GET',
+                    headers: {'X-CSRFToken': csrftoken},
+                    success: function(data) {
+                        var results = Array.isArray(data) ? data : (data.results || []);
+                        var currentValue = select.val();
+                        select.find('option').not(':first').remove();
+                        
+                        results.forEach(function(item) {
+                            var codeValue = item.code || item.name.toLowerCase().replace(/\s+/g, '_');
+                            var option = $('<option>')
+                                .attr('value', codeValue)
+                                .attr('data-id', item.id)
+                                .text(item.name);
+                            select.append(option);
+                        });
+                        
+                        if (currentValue) {
+                            select.val(currentValue);
+                        }
+                    },
+                    error: function() {
+                        console.error('Failed to load plantation types');
+                    }
+                });
+            }
+            
+            function addIconsToPlantationType() {
+                // More aggressive selector - find the field row
+                var fieldRow = $('.field-plantation_type, .form-row.field-plantation_type');
+                
+                if (!fieldRow.length) {
+                    // Try finding by the select element itself
+                    var select = $('#id_plantation_type');
+                    if (select.length) {
+                        fieldRow = select.closest('.form-row, .field-box, div');
+                    }
+                }
+                
+                if (fieldRow.length) {
+                    // Check if icons already exist
+                    if (fieldRow.find('.field-icon-buttons').length === 0) {
+                        var select = fieldRow.find('select#id_plantation_type');
+                        if (!select.length) {
+                            select = $('#id_plantation_type');
+                        }
+                        
+                        if (select.length) {
+                            var iconButtons = createIconButtons(select);
+                            
+                            // Insert after the related-widget-wrapper or select
+                            var wrapper = select.closest('.related-widget-wrapper');
+                            if (wrapper.length) {
+                                wrapper.after(iconButtons);
+                            } else {
+                                select.after(iconButtons);
+                            }
+                            
+                            // Force visibility with important flags
+                            iconButtons.css({
+                                'display': 'inline-flex',
+                                'visibility': 'visible',
+                                'opacity': '1',
+                                'position': 'relative',
+                                'z-index': '10'
+                            });
+                            
+                            console.log('✅ Icons added to plantation_type field');
+                            loadItemsIntoDropdown(select);
+                        } else {
+                            console.log('❌ Could not find plantation_type select element');
+                        }
+                    } else {
+                        console.log('ℹ️ Icons already exist for plantation_type');
+                    }
+                } else {
+                    console.log('❌ Could not find plantation_type field row');
+                }
+            }
+            
+            // Use Django's admin ready event and multiple attempts
+            (function() {
+                function tryAddIcons() {
+                    addIconsToPlantationType();
+                }
+                
+                // Try immediately
+                tryAddIcons();
+                
+                // Try after short delay
+                setTimeout(tryAddIcons, 300);
+                
+                // Try after longer delay
+                setTimeout(tryAddIcons, 1000);
+                
+                // Try after page fully loaded
+                setTimeout(tryAddIcons, 2000);
+                
+                // Also listen for formset events
+                django.jQuery(document).on('formset:added', function() {
+                    setTimeout(tryAddIcons, 100);
+                });
+            })();
+            
+            function getCookie(name) {
+                var cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    var cookies = document.cookie.split(';');
+                    for (var i = 0; i < cookies.length; i++) {
+                        var cookie = $.trim(cookies[i]);
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+        })(django.jQuery);
+    </script>
+{% endblock %}

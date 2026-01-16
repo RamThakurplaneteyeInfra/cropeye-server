@@ -4,8 +4,58 @@ from dotenv import load_dotenv
 from datetime import timedelta
 
 # GDAL Settings
-#GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal310.dll'
-#GEOS_LIBRARY_PATH = r'C:\OSGeo4W\bin\geos_c.dll'
+# Try to auto-detect GDAL library path
+import sys
+
+# Get conda environment paths if using conda
+conda_env_paths = []
+if 'CONDA_PREFIX' in os.environ:
+    conda_prefix = os.environ['CONDA_PREFIX']
+    conda_env_paths = [
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal304.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal303.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal302.dll'),
+        os.path.join(conda_prefix, 'Library', 'bin', 'gdal301.dll'),
+    ]
+
+gdal_paths = [
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev312.dll',
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev311.dll',
+    r'C:\OSGeo4W\apps\gdal-dev\bin\gdal-dev310.dll',
+    r'C:\OSGeo4W\bin\gdal310.dll',
+    r'C:\OSGeo4W\bin\gdal309.dll',
+    r'C:\OSGeo4W\bin\gdal308.dll',
+    r'C:\OSGeo4W64\bin\gdal310.dll',
+    r'C:\OSGeo4W64\bin\gdal309.dll',
+    r'C:\OSGeo4W64\bin\gdal308.dll',
+] + conda_env_paths
+
+geos_paths = [
+    r'C:\OSGeo4W\bin\geos_c.dll',
+    r'C:\OSGeo4W64\bin\geos_c.dll',
+]
+if 'CONDA_PREFIX' in os.environ:
+    conda_prefix = os.environ['CONDA_PREFIX']
+    geos_paths.extend([
+        os.path.join(conda_prefix, 'Library', 'bin', 'geos_c.dll'),
+    ])
+
+# Check environment variable first
+GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH')
+GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH')
+
+# If not set, try to find it
+if not GDAL_LIBRARY_PATH:
+    for path in gdal_paths:
+        if os.path.exists(path):
+            GDAL_LIBRARY_PATH = path
+            break
+
+if not GEOS_LIBRARY_PATH:
+    for path in geos_paths:
+        if os.path.exists(path):
+            GEOS_LIBRARY_PATH = path
+            break
 
 # Load environment variables
 # Try to load .env.local first (for development), then .env
@@ -23,7 +73,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+# ALLOWED_HOSTS - Allow all hosts for local network access (same WiFi)
+# For production, set ALLOWED_HOSTS environment variable with specific domains
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '*')
+if allowed_hosts_env == '*':
+    ALLOWED_HOSTS = ['*']  # Allow all hosts for local network access
+else:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -52,7 +108,9 @@ INSTALLED_APPS = [
     'inventory',
     'vendors',
     'farms',
-    # 'chatbotapi',  # Removed - causing migration issues
+    'messaging',  # Two-way communication system
+    'chatbot',
+    'industries',
 ]
 
 MIDDLEWARE = [
@@ -60,6 +118,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'users.middleware.JSONExceptionMiddleware',  # Catch exceptions early for API requests
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -123,6 +182,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Media files
 MEDIA_URL = '/media/'
@@ -134,6 +196,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# Custom authentication backend for phone number login
+AUTHENTICATION_BACKENDS = [
+    'users.backends.PhoneNumberBackend',  # Phone number authentication
+    'django.contrib.auth.backends.ModelBackend',  # Fallback to default
+]
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -144,6 +212,16 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'EXCEPTION_HANDLER': 'users.exception_handler.custom_exception_handler',
 }
 
 # JWT settings
@@ -159,9 +237,11 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CORS settings
+# CORS settings - Allow all origins for development
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# Note: When CORS_ALLOW_ALL_ORIGINS is True, CORS_ALLOW_CREDENTIALS must be False
+# Browsers don't allow credentials with wildcard origins
+CORS_ALLOW_CREDENTIALS = False
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -202,6 +282,11 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+
+# Mailgun Configuration for OTP emails
+MAILGUN_API_KEY = os.environ.get('MAILGUN_API_KEY', '')
+MAILGUN_DOMAIN = os.environ.get('MAILGUN_DOMAIN', '')
+MAILGUN_FROM_EMAIL = os.environ.get('MAILGUN_FROM_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Frontend URL for password reset links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
