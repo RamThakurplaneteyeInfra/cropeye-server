@@ -40,29 +40,20 @@ COPY . /app/
 # Create directories for media, static files, and logs
 RUN mkdir -p /app/media /app/staticfiles /app/logs
 
+# Make scripts executable
+RUN chmod +x /app/start_server.sh /app/filter_health_checks.py
+
 # Create a non-root user
 RUN adduser --disabled-password --gecos '' appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
 # Expose port
-EXPOSE 8001
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/api/health/ || exit 1
+    CMD curl -f http://localhost:8000/api/health/ || exit 1
 
-# Run the application
-CMD ["/bin/sh", "-c", "\
-    echo '🚀 Starting Django application...' && \
-    mkdir -p /app/logs && \
-    echo '⏳ Waiting for database connection...' && \
-    until nc -z -v -w30 \"${DB_HOST:-db}\" 5432; do \
-      echo \"Waiting for database at ${DB_HOST:-db}:5432...\"; \
-      sleep 2; \
-    done && \
-    echo '✅ Database is up and running!' && \
-    echo '📊 Applying database migrations...' && python manage.py migrate --noinput && \
-    echo '📁 Collecting static files...' && python manage.py collectstatic --noinput && \
-    echo '🌐 Starting Gunicorn server...' && exec gunicorn farm_management.wsgi:application --bind 0.0.0.0:8001 --workers 3 --timeout 120 --access-logfile - --error-logfile - \
-"]
+# Run the application using the wrapper script
+CMD ["/app/start_server.sh"]
