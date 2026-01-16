@@ -520,3 +520,8 @@ development_*
 .env.render
 .env.local.backup*
 env.example
+
+# Database backups
+backups/
+*.sql
+*.sql.gz
