@@ -9,6 +9,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from users.multi_tenant_utils import filter_by_industry, get_user_industry
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.parsers import MultiPartParser, FormParser
 from .models import (
     SoilType,
     CropType,
@@ -19,6 +21,7 @@ from .models import (
     FarmImage,
     FarmSensor,
     FarmIrrigation,
+    GrapseReport,
 )
 from .serializers import (
     SoilTypeSerializer,
@@ -34,6 +37,7 @@ from .serializers import (
     FarmImageSerializer,
     FarmSensorSerializer,
     FarmIrrigationSerializer,
+    GrapseReportSerializer
 )
 
 
@@ -223,12 +227,23 @@ class FarmViewSet(viewsets.ModelViewSet):
         data = self.request.data
 
         # field officer must assign farm_owner
-        if user.has_role('fieldofficer') and not data.get('farm_owner'):
-            raise ValidationError("Field Officer must assign a farm_owner.")
-
+        farm_owner = None
+        if user.has_role('fieldofficer'):
+            farm_owner_id = data.get('farm_owner_id')
+            if not farm_owner_id:
+                raise ValidationError("Field Officer must assign a farm_owner.")
+            try:
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                farm_owner = User.objects.get(pk=farm_owner_id)
+            except User.DoesNotExist:
+                raise ValidationError("Invalid farm_owner_id.")
+        
         # Assign industry from user
         user_industry = get_user_industry(user)
-        serializer.save(created_by=user, industry=user_industry)
+        
+        # Save the farm
+        serializer.save(created_by=user, industry=user_industry, farm_owner=farm_owner)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -399,6 +414,7 @@ class FarmViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='register-farmer')
     def register_farmer(self, request):
+    
         """
         Complete farmer registration endpoint - creates farmer, plot, farm, and irrigation in one call
         Supports both single plot and multiple plots registration.
@@ -1118,6 +1134,8 @@ class PlotViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer_class()(queryset, many=True)
         return Response(serializer.data)
 
+    
+
     @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def public(self, request):
         """Public endpoint for plots with farm information - no authentication required"""
@@ -1169,7 +1187,43 @@ class PlotViewSet(viewsets.ModelViewSet):
                     'plantation_type': farm.crop_type.get_plantation_type_display() if farm.crop_type and farm.crop_type.plantation_type else None,
                     'plantation_type_code': farm.crop_type.plantation_type if farm.crop_type and farm.crop_type.plantation_type else None,
                     'planting_method': farm.crop_type.get_planting_method_display() if farm.crop_type and farm.crop_type.planting_method else None,
-                    'planting_method_code': farm.crop_type.planting_method if farm.crop_type and farm.crop_type.planting_method else None
+                    'planting_method_code': farm.crop_type.planting_method if farm.crop_type and farm.crop_type.planting_method else None,
+
+                    # IDs
+                    'soil_type_id': farm.soil_type.id if farm.soil_type else None,
+                    'crop_type_name': farm.crop_type.crop_type if farm.crop_type else None,  # <-- Added this line
+                    # Crop/variety info
+                    'crop_variety': getattr(farm, 'crop_variety', None),
+                    'sugarcane_plantation_type': getattr(farm, 'sugarcane_plantation_type', None),
+                    'sugarcane_planting_method': getattr(farm, 'sugarcane_planting_method', None),
+                    'spacing_a': getattr(farm, 'spacing_a', None),
+                    'spacing_b': getattr(farm, 'spacing_b', None),
+                    'grapes_plantation_type': getattr(farm, 'grapes_plantation_type', None),
+                    'variety_type': getattr(farm, 'variety_type', None),
+                    'variety_subtype': getattr(farm, 'variety_subtype', None),
+                    'variety_timing': getattr(farm, 'variety_timing', None),
+                    'plant_age': getattr(farm, 'plant_age', None),
+
+                    # Important farm dates
+                    'foundation_pruning_date': farm.foundation_pruning_date.isoformat() if farm.foundation_pruning_date else None,
+                    'fruit_pruning_date': farm.fruit_pruning_date.isoformat() if farm.fruit_pruning_date else None,
+                    'last_harvesting_date': farm.last_harvesting_date.isoformat() if farm.last_harvesting_date else None,
+
+                    # Irrigation info
+                    'irrigations': [
+                        {
+                            'id': irrigation.id,
+                            'type': irrigation.irrigation_type.name if irrigation.irrigation_type else None,
+                          
+                        } for irrigation in farm.irrigations.all()
+                    ],
+
+                    # Farm owner
+                    'farm_owner': {
+                        'id': farm.farm_owner.id,
+                        'username': farm.farm_owner.username,
+                        'full_name': f"{farm.farm_owner.first_name} {farm.farm_owner.last_name}".strip() or farm.farm_owner.username
+                    } if farm.farm_owner else None
                 }
                 farm_details.append(farm_info)
             
@@ -1287,23 +1341,33 @@ class FarmIrrigationViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
 
-        if farm_id := self.request.query_params.get('farm'):
-            if farm_id.isdigit():
-                qs = qs.filter(farm_id=farm_id)
+        # Filter by farm ID if provided and valid
+        farm_id = self.request.query_params.get('farm')
+        if farm_id and farm_id.isdigit():
+            qs = qs.filter(farm_id=int(farm_id))
 
+        # Filter only the farms owned by current user if requested
         if self.request.query_params.get('my_farms') == 'true':
             qs = qs.filter(farm__farm_owner=user)
 
-        if t := self.request.query_params.get('type'):
-            qs = qs.filter(irrigation_type__name=t)
+        # Filter by irrigation type name if provided
+        irrigation_type_name = self.request.query_params.get('type')
+        if irrigation_type_name:
+            qs = qs.filter(irrigation_type__name__iexact=irrigation_type_name)
 
-        if st := self.request.query_params.get('status'):
-            qs = qs.filter(status=(st.lower() == 'true'))
+        # Filter by status if provided
+        status = self.request.query_params.get('status')
+        if status is not None:
+            if status.lower() in ['true', '1']:
+                qs = qs.filter(status=True)
+            elif status.lower() in ['false', '0']:
+                qs = qs.filter(status=False)
 
-        if user.has_role('fieldofficer'):
+        # Field officers can only see farms they created
+        if hasattr(user, 'has_role') and user.has_role('fieldofficer'):
             qs = qs.filter(farm__created_by=user)
 
-        return qs
+        return qs.select_related('farm', 'irrigation_type')
 
     def perform_create(self, serializer):
         # FarmIrrigation model doesn't have created_by field
@@ -1329,3 +1393,17 @@ class FarmIrrigationViewSet(viewsets.ModelViewSet):
             }
 
         return Response(result)
+    
+class GrapseReportViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing Grapse Reports.
+    Supports listing, creating, retrieving, updating, and deleting reports.
+    """
+    queryset = GrapseReport.objects.all().order_by('-uploaded_at')
+    serializer_class = GrapseReportSerializer
+    permission_classes = [permissions.IsAuthenticated]  # Only logged-in users can access
+    parser_classes = [MultiPartParser, FormParser]  # Handle file uploads
+
+    def perform_create(self, serializer):
+        # Automatically set the uploaded_by field to the logged-in user
+        serializer.save(uploaded_by=self.request.user)

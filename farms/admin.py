@@ -1,6 +1,10 @@
 from django.contrib import admin
 from leaflet.admin import LeafletGeoAdmin
 from users.admin import IndustryFilteredAdmin
+from django import forms
+from .models import Farm
+from .models import GrapseReport
+
 
 from .models import (
     SoilType,
@@ -158,10 +162,20 @@ class FarmIrrigationInline(admin.TabularInline):
         'irrigation_type',
         'status',
     )
-
+class FarmAdminForm(forms.ModelForm):
+    class Meta:
+        model = Farm
+        fields = '__all__'
+        widgets = {
+            'plantation_date': forms.DateInput(attrs={'type': 'date'}),
+            'foundation_pruning_date': forms.DateInput(attrs={'type': 'date'}),
+            'fruit_pruning_date': forms.DateInput(attrs={'type': 'date'}),
+            'last_harvesting_date': forms.DateInput(attrs={'type': 'date'}),
+        }
 
 @admin.register(Farm)
 class FarmAdmin(admin.ModelAdmin):
+    form = FarmAdminForm
     list_display = (
         'farm_owner',
         'farm_uid',
@@ -169,12 +183,37 @@ class FarmAdmin(admin.ModelAdmin):
         'area_size',
         'soil_type',
         'crop_type',
+        'crop_variety',
+        'variety_type',
+        'variety_subtype',
+        'variety_timing',
+        'plant_age',
         'plantation_date',
         'get_created_by_email',
         'created_at',
     )
-    list_filter = ('industry', 'soil_type', 'crop_type', 'created_at', 'created_by')
-    search_fields = ('farm_owner__username', 'farm_uid', 'address', 'created_by__email', 'industry__name', 'crop_variety')
+
+    list_filter = (
+        'industry',
+        'soil_type',
+        'crop_type',
+        'variety_type',
+        'variety_subtype',
+        'variety_timing',
+        'plant_age',
+        'created_at',
+        'created_by',
+    )
+
+    search_fields = (
+        'farm_owner__username',
+        'farm_uid',
+        'address',
+        'created_by__email',
+        'industry__name',
+        'crop_variety',
+    )
+
     readonly_fields = ('farm_uid', 'created_at', 'updated_at')
 
     inlines = [
@@ -183,8 +222,9 @@ class FarmAdmin(admin.ModelAdmin):
         FarmSensorInline,
     ]
 
+     # Group fields into collapsible sections
     fieldsets = (
-        (None, {
+        ('Basic Info', {
             'fields': (
                 'farm_owner',
                 'plot',
@@ -198,8 +238,27 @@ class FarmAdmin(admin.ModelAdmin):
                 'farm_document',
             )
         }),
-        ('Plantation Details', {
-            'fields': ('spacing_a', 'spacing_b'),
+        ('Sugarcane Specific', {
+            'fields': ('sugarcane_plantation_type',
+        'sugarcane_planting_method','spacing_a', 'spacing_b'),
+            'classes': ('collapse',),
+        }),
+        ('Grapes Specific', {
+            'fields': (
+                'grapes_plantation_type',
+                'variety_type',
+                'variety_subtype',
+                'variety_timing',
+                'plant_age',
+                'foundation_pruning_date',
+                'fruit_pruning_date',
+                'last_harvesting_date',
+                'resting_period_days',
+                'row_spacing',
+                'plant_spacing',
+                'flow_rate_liter_per_hour',
+                'emitters_per_plant',
+            ),
             'classes': ('collapse',),
         }),
         ('Metadata', {
@@ -207,7 +266,7 @@ class FarmAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
-    
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -215,21 +274,20 @@ class FarmAdmin(admin.ModelAdmin):
         if hasattr(request.user, 'industry') and request.user.industry:
             return qs.filter(industry=request.user.industry)
         return qs.none()
-    
+
     def save_model(self, request, obj, form, change):
+        # Automatically set industry if not already set
         if not change and hasattr(obj, 'industry') and not obj.industry:
             if hasattr(request.user, 'industry') and request.user.industry:
                 obj.industry = request.user.industry
         super().save_model(request, obj, form, change)
-    
+
     def get_created_by_email(self, obj):
         """Display the email of the user who created this farm"""
-        if obj.created_by:
-            return obj.created_by.email
-        return "No creator"
+        return obj.created_by.email if obj.created_by else "No creator"
+
     get_created_by_email.short_description = 'Created By (Email)'
     get_created_by_email.admin_order_field = 'created_by__email'
-
 
 @admin.register(Plot)
 class PlotAdmin(LeafletGeoAdmin):
@@ -349,7 +407,17 @@ class FarmIrrigationAdmin(LeafletGeoAdmin):
                 'plants_per_acre',
                 'flow_rate_lph',
                 'emitters_count',
+                
             )
         }),
         ('Geographic', {'fields': ('location',)}),
     )
+
+@admin.register(GrapseReport)
+class GrapseReportAdmin(admin.ModelAdmin):
+    list_display = ('plot', 'file_type', 'uploaded_by', 'uploaded_at')
+    list_filter = ('file_type', 'uploaded_at')
+    search_fields = ('plot__name', 'uploaded_by__username', 'notes')
+
+    # Only show these fields in the admin form
+    fields = ('plot', 'file_type', 'file', 'uploaded_by', 'notes')

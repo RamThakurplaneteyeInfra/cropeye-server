@@ -6,7 +6,7 @@
     <style>
         /* Hide the green plus (add) icon from Django admin ForeignKey popup icons */
         /* Comprehensive selectors to catch all variations */
-        
+
         /* Standard Django admin selectors */
         .related-widget-wrapper .add-related,
         .related-widget-wrapper a[href*="add/"],
@@ -18,7 +18,7 @@
             display: none !important;
             visibility: hidden !important;
         }
-        
+
         /* Field-specific hiding */
         .field-plantation_type .related-widget-wrapper a[href*="add/"],
         .field-planting_method .related-widget-wrapper a[href*="add/"],
@@ -31,7 +31,7 @@
             display: none !important;
             visibility: hidden !important;
         }
-        
+
         /* Hide any button or link immediately after select fields */
         .field-plantation_type select + a,
         .field-planting_method select + a,
@@ -44,7 +44,7 @@
             display: none !important;
             visibility: hidden !important;
         }
-        
+
         /* Hide any element with green background or plus sign content */
         button[style*="green"],
         a[style*="green"],
@@ -53,14 +53,14 @@
             display: none !important;
             visibility: hidden !important;
         }
-        
+
         /* Hide by href pattern - any link with add in URL */
         a[href*="/add/"],
         a[href*="add/"] {
             display: none !important;
             visibility: hidden !important;
         }
-        
+
         /* Hide buttons with add text in title */
         button[title*="Add"],
         a[title*="Add"],
@@ -70,22 +70,4 @@
             visibility: hidden !important;
         }
     </style>
-    <script>
-        // Also hide via JavaScript as fallback
-        (function($) {
-            $(document).ready(function() {
-                // Hide any green plus buttons next to select fields
-                $('.field-plantation_type select, .field-planting_method select').each(function() {
-                    $(this).next('a, button').hide();
-                    $(this).siblings('a, button').hide();
-                });
-                
-                // Hide any element with green background
-                $('a[style*="green"], button[style*="green"]').hide();
-                
-                // Hide any link with add in href
-                $('a[href*="add/"]').hide();
-            });
-        })(django.jQuery);
-    </script>
 {% endblock %}

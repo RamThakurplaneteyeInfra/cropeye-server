@@ -1,15 +1,18 @@
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from rest_framework_nested import routers
 from .views import TaskViewSet, TaskCommentViewSet, TaskAttachmentViewSet
 
-router = routers.SimpleRouter()
-router.register(r'', TaskViewSet, basename='task')
+# Main router
+router = DefaultRouter()
+router.register(r'', TaskViewSet, basename='task')  # 👈 EMPTY STRING
 
-nested_router = routers.NestedSimpleRouter(router, r'', lookup='task')
-nested_router.register(r'comments', TaskCommentViewSet, basename='task-comment')
-nested_router.register(r'attachments', TaskAttachmentViewSet, basename='task-attachment')
+# Nested router for comments & attachments
+tasks_router = routers.NestedDefaultRouter(router, r'', lookup='task')
+tasks_router.register(r'comments', TaskCommentViewSet, basename='task-comments')
+tasks_router.register(r'attachments', TaskAttachmentViewSet, basename='task-attachments')
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('', include(nested_router.urls)),
-] 
+    path('', include(tasks_router.urls)),
+]

@@ -13,6 +13,7 @@ from .views import (
     FarmImageViewSet,
     FarmSensorViewSet,
     FarmIrrigationViewSet,
+    GrapseReportViewSet,  # <-- add this
 )
 
 router = DefaultRouter()
@@ -25,6 +26,7 @@ router.register('plots',            PlotViewSet,            basename='plot')
 router.register('farm-images',      FarmImageViewSet,       basename='farmimage')
 router.register('farm-sensors',     FarmSensorViewSet,      basename='farmsensor')
 router.register('farm-irrigations', FarmIrrigationViewSet,  basename='farmirrigation')
+router.register('grapse-reports',   GrapseReportViewSet,    basename='grapsereport')  # <-- new
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -2,6 +2,8 @@ from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 from rest_framework_gis.fields import GeometryField
 from django.contrib.auth import get_user_model
+from django.db import transaction
+from django.contrib.gis.geos import Point
 import json
 
 from .models import (
@@ -15,6 +17,7 @@ from .models import (
     FarmSensor,
     FarmIrrigation,
     IrrigationType,
+    GrapseReport 
 )
 
 User = get_user_model()
@@ -249,6 +252,7 @@ class FarmIrrigationSerializer(serializers.ModelSerializer):
 
 class FarmWithIrrigationSerializer(serializers.ModelSerializer):
     """Serializer for creating farms with irrigation in a single request"""
+
     farm_owner = UserSerializer(read_only=True)
     farm_owner_id = serializers.PrimaryKeyRelatedField(
         source='farm_owner',
@@ -268,13 +272,12 @@ class FarmWithIrrigationSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     crop_type = CropTypeSerializer(read_only=True)
-    crop_type_id = serializers.PrimaryKeyRelatedField(
-        source='crop_type',
-        queryset=CropType.objects.all(),
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
+    crop_type_name = serializers.CharField(
+    write_only=True,
+    required=False,
+    allow_null=True,
+    help_text="Provide the crop type name (e.g., 'grapes')"
+)
     plot = PlotSerializer(read_only=True)
     plot_id = serializers.PrimaryKeyRelatedField(
         source='plot',
@@ -283,141 +286,165 @@ class FarmWithIrrigationSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    
-    # Irrigation fields
-    irrigation_type = serializers.IntegerField(
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
-    motor_horsepower = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    pipe_width_inches = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    distance_motor_to_plot_m = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    plants_per_acre = serializers.IntegerField(write_only=True, required=False, allow_null=True)
-    flow_rate_lph = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    emitters_count = serializers.IntegerField(write_only=True, required=False, allow_null=True)
-    
+
+    # Sugarcane fields
+    spacing_a = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    spacing_b = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    sugarcane_plantation_type = serializers.ChoiceField(choices=Farm.SUGARCANE_PLANTATION_CHOICES, required=False, allow_null=True)
+    sugarcane_planting_method = serializers.ChoiceField(choices=Farm.SUGARCANE_PLANTING_METHOD_CHOICES, required=False, allow_null=True)
+
+    # Grapes fields
+    grapes_plantation_type = serializers.ChoiceField(choices=Farm.GRAPES_PLANTATION_CHOICES, required=False, allow_null=True)
+    variety_type = serializers.ChoiceField(choices=Farm.VARIETY_TYPE_CHOICES, required=False, allow_null=True)
+    variety_subtype = serializers.ChoiceField(choices=Farm.VARIETY_SUBTYPE_CHOICES, required=False, allow_null=True)
+    variety_timing = serializers.ChoiceField(choices=Farm.VARIETY_TIMING_CHOICES, required=False, allow_null=True)
+    plant_age = serializers.ChoiceField(choices=Farm.PLANT_AGE_CHOICES, required=False, allow_null=True)
+    foundation_pruning_date = serializers.DateField(required=False, allow_null=True)
+    fruit_pruning_date = serializers.DateField(required=False, allow_null=True)
+    last_harvesting_date = serializers.DateField(required=False, allow_null=True)
+    resting_period_days = serializers.IntegerField(required=False, allow_null=True)
+
+    # Drip irrigation fields
+    row_spacing = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    plant_spacing = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    flow_rate_liter_per_hour = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    emitters_per_plant = serializers.IntegerField(required=False, allow_null=True)
+
+    # General irrigation fields (keep them NOT write_only so they show in response)
+    irrigation_type = serializers.IntegerField(required=False, allow_null=True)
+    motor_horsepower = serializers.FloatField(required=False, allow_null=True)
+    pipe_width_inches = serializers.FloatField(required=False, allow_null=True)
+    distance_motor_to_plot_m = serializers.FloatField(required=False, allow_null=True)
+    plants_per_acre = serializers.IntegerField(required=False, allow_null=True)
+    flow_rate_lph = serializers.FloatField(required=False, allow_null=True)
+    emitters_count = serializers.IntegerField(required=False, allow_null=True)
+
     # Location fields
-    location_lat = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    location_lng = serializers.FloatField(write_only=True, required=False, allow_null=True)
-    boundary_geojson = serializers.CharField(write_only=True, required=False, allow_blank=True)
-    
-    # Spacing fields and calculated plants
+    location_lat = serializers.FloatField(required=False, allow_null=True)
+    location_lng = serializers.FloatField(required=False, allow_null=True)
+    boundary_geojson = serializers.CharField(required=False, allow_blank=True)
+
+    # Calculated fields
     plants_in_field = serializers.ReadOnlyField()
 
     class Meta:
         model = Farm
         fields = [
-            'id',
-            'farm_uid',
-            'farm_owner',
-            'farm_owner_id',
-            'created_by',
-            'plot',
-            'plot_id',
-            'address',
-            'area_size',
-            'soil_type',
-            'soil_type_id',
-            'crop_type',
-            'crop_type_id',
-            'farm_document',
-            'plantation_date',
-            'created_at',
-            'updated_at',
-            'spacing_a',
-            'spacing_b',
+            'id', 'farm_uid', 'farm_owner', 'farm_owner_id', 'created_by',
+            'plot', 'plot_id', 'address', 'area_size',
+            'soil_type', 'soil_type_id', 'crop_type', 'crop_type_name',
+            'farm_document', 'plantation_date',
+            # Sugarcane
+            'spacing_a', 'spacing_b', 'sugarcane_plantation_type', 'sugarcane_planting_method',
+            # Grapes
+            'grapes_plantation_type', 'variety_type', 'variety_subtype', 'variety_timing', 'plant_age',
+            'foundation_pruning_date', 'fruit_pruning_date', 'last_harvesting_date', 'resting_period_days',
+            # Drip irrigation
+            'row_spacing', 'plant_spacing', 'flow_rate_liter_per_hour', 'emitters_per_plant',
+            # General irrigation
+            'irrigation_type', 'motor_horsepower', 'pipe_width_inches', 'distance_motor_to_plot_m',
+            'plants_per_acre', 'flow_rate_lph', 'emitters_count',
+            # Location
+            'location_lat', 'location_lng', 'boundary_geojson',
+            # Calculated fields
             'plants_in_field',
-            # Irrigation fields
-            'irrigation_type',
-            'motor_horsepower',
-            'pipe_width_inches',
-            'distance_motor_to_plot_m',
-            'plants_per_acre',
-            'flow_rate_lph',
-            'emitters_count',
-            # Location fields
-            'location_lat',
-            'location_lng',
-            'boundary_geojson',
+            # timestamps
+            'created_at', 'updated_at'
         ]
         read_only_fields = ['farm_uid', 'farm_owner', 'created_by', 'created_at', 'updated_at']
 
     def create(self, validated_data):
-        """Create farm and irrigation in a single transaction"""
-        from django.db import transaction
-        from django.contrib.gis.geos import Point, GEOSGeometry
+        user = self.context['request'].user
         
-        # Extract irrigation data
+        # 1. Setup metadata
+        validated_data.setdefault('farm_owner', user)
+        validated_data['created_by'] = user
+
+        # 2. Separate Irrigation & Location data 
+        # (Because these don't exist on the 'Farm' model)
         irrigation_type_id = validated_data.pop('irrigation_type', None)
-        irrigation_type = None
-        if irrigation_type_id:
-            try:
-                irrigation_type = IrrigationType.objects.get(id=irrigation_type_id)
-            except IrrigationType.DoesNotExist:
-                raise serializers.ValidationError(f"Irrigation type with ID {irrigation_type_id} does not exist")
         
-        irrigation_data = {
-            'irrigation_type': irrigation_type,
-            'motor_horsepower': validated_data.pop('motor_horsepower', None),
-            'pipe_width_inches': validated_data.pop('pipe_width_inches', None),
-            'distance_motor_to_plot_m': validated_data.pop('distance_motor_to_plot_m', None),
-            'plants_per_acre': validated_data.pop('plants_per_acre', None),
-            'flow_rate_lph': validated_data.pop('flow_rate_lph', None),
-            'emitters_count': validated_data.pop('emitters_count', None),
-        }
-        
-        # Extract location data
+        # We use a list to cleanly extract irrigation-only fields
+        irrig_fields = ['motor_horsepower', 'pipe_width_inches', 'distance_motor_to_plot_m', 
+                        'plants_per_acre', 'flow_rate_lph', 'emitters_count']
+        irrigation_data = {f: validated_data.pop(f, None) for f in irrig_fields}
+
         location_lat = validated_data.pop('location_lat', None)
         location_lng = validated_data.pop('location_lng', None)
         boundary_geojson = validated_data.pop('boundary_geojson', None)
-        
+         # 3. Handle crop_type_name -> convert to CropType instance
+        crop_type_name = validated_data.pop('crop_type_name', None)
+        if crop_type_name:
+            # Case-insensitive match
+            crop_qs = CropType.objects.filter(crop_type__iexact=crop_type_name)
+            if not crop_qs.exists():
+                raise serializers.ValidationError({
+                    'crop_type_name': f"CropType with name '{crop_type_name}' does not exist. "
+                                    f"Available options: sugarcane, grapse."
+                })
+            crop_type_obj = crop_qs.first()  # pick the first match
+            validated_data['crop_type'] = crop_type_obj
+
+
+
         with transaction.atomic():
-            # Create the farm
-            farm = super().create(validated_data)
-            
-            # Create irrigation if irrigation type is provided
-            if irrigation_data['irrigation_type']:
-                irrigation_location = None
+            # 3. Create Farm
+            # Now validated_data ONLY contains Farm model fields.
+            # Grapes and Sugarcane data will save automatically here.
+            farm = Farm.objects.create(**validated_data)
+
+            # 4. Create Irrigation
+            if irrigation_type_id:
+                irrig_type_obj = IrrigationType.objects.get(id=irrigation_type_id)
+                irrig_loc = Point(location_lng, location_lat, srid=4326) if location_lat else None
                 
-                # Set irrigation location
-                if location_lat and location_lng:
-                    irrigation_location = Point(location_lng, location_lat, srid=4326)
-                elif boundary_geojson:
-                    try:
-                        boundary_data = json.loads(boundary_geojson)
-                        irrigation_location = GEOSGeometry(json.dumps(boundary_data))
-                    except (json.JSONDecodeError, Exception):
-                        irrigation_location = Point(0, 0, srid=4326)
-                else:
-                    irrigation_location = Point(0, 0, srid=4326)
-                
-                # Create irrigation
                 FarmIrrigation.objects.create(
                     farm=farm,
-                    irrigation_type=irrigation_data['irrigation_type'],
-                    location=irrigation_location,
-                    motor_horsepower=irrigation_data['motor_horsepower'],
-                    pipe_width_inches=irrigation_data['pipe_width_inches'],
-                    distance_motor_to_plot_m=irrigation_data['distance_motor_to_plot_m'],
-                    plants_per_acre=irrigation_data['plants_per_acre'],
-                    flow_rate_lph=irrigation_data['flow_rate_lph'],
-                    emitters_count=irrigation_data['emitters_count'],
+                    irrigation_type=irrig_type_obj,
+                    location=irrig_loc,
+                    **irrigation_data
                 )
-        
         return farm
-    
+
     def to_representation(self, instance):
-        # Override to pass farm instance to CropTypeSerializer
         representation = super().to_representation(instance)
-        if 'crop_type' in representation and instance.crop_type:
-            # Pass farm instance to crop_type serializer context
-            crop_type_serializer = CropTypeSerializer(
-                instance.crop_type,
-                context={'farm': instance, **self.context}
-            )
-            representation['crop_type'] = crop_type_serializer.data
+        
+        # 1. Include nested relationships
+        if instance.crop_type:
+            representation['crop_type'] = CropTypeSerializer(instance.crop_type, context=self.context).data
+        if instance.soil_type:
+            representation['soil_type'] = SoilTypeSerializer(instance.soil_type, context=self.context).data
+        if instance.plot:
+            representation['plot'] = PlotSerializer(instance.plot, context=self.context).data
+
+        # 2. Include Irrigation Data (Important!)
+        # Your previous response was returning "irrigation: null"
+        # We fetch the first irrigation record related to this farm
+        irrigation = instance.irrigations.first()  # Uses the 'related_name' from your Model
+        if irrigation:
+            representation['irrigation'] = {
+                'id': irrigation.id,
+                'farm_uid': instance.farm_uid_str(),
+                'irrigation_type': irrigation.irrigation_type.id if irrigation.irrigation_type else None,
+                'irrigation_type_name': irrigation.irrigation_type.name if irrigation.irrigation_type else None,
+                'irrigation_type_display': irrigation.irrigation_type.get_name_display() if irrigation.irrigation_type else None,
+                'location': {
+                    "type": "Point",
+                    "coordinates": [irrigation.location.x, irrigation.location.y]
+                } if irrigation.location else None,
+                'status': irrigation.status,
+                'motor_horsepower': irrigation.motor_horsepower,
+                'pipe_width_inches': irrigation.pipe_width_inches,
+                'distance_motor_to_plot_m': irrigation.distance_motor_to_plot_m,
+                'plants_per_acre': irrigation.plants_per_acre,
+                'flow_rate_lph': irrigation.flow_rate_lph,
+                'emitters_count': irrigation.emitters_count,
+            }
+        else:
+            representation['irrigation'] = None
+
         return representation
+
 
 class FarmSerializer(serializers.ModelSerializer):
     farm_owner = UserSerializer(read_only=True)
@@ -439,13 +466,13 @@ class FarmSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     crop_type = CropTypeSerializer(read_only=True)
-    crop_type_id = serializers.PrimaryKeyRelatedField(
-        source='crop_type',
-        queryset=CropType.objects.all(),
-        write_only=True,
-        required=False,
-        allow_null=True,
-    )
+    crop_type_name = serializers.CharField(
+    write_only=True,
+    required=False,
+    allow_null=True,
+    help_text="Provide the crop type name (e.g., 'grapes')"
+)
+
     plot = PlotSerializer(read_only=True)
     plot_id = serializers.PrimaryKeyRelatedField(
         source='plot',
@@ -455,81 +482,213 @@ class FarmSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     
-    # Spacing fields and calculated plants
     plants_in_field = serializers.ReadOnlyField()
 
+    # Sugarcane fields
+    spacing_a = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    spacing_b = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    sugarcane_plantation_type = serializers.ChoiceField(choices=Farm.SUGARCANE_PLANTATION_CHOICES, required=False, allow_null=True)
+    sugarcane_planting_method = serializers.ChoiceField(choices=Farm.SUGARCANE_PLANTING_METHOD_CHOICES, required=False, allow_null=True)
+
+    # Grapes fields
+    grapes_plantation_type = serializers.ChoiceField(choices=Farm.GRAPES_PLANTATION_CHOICES, required=False, allow_null=True)
+    variety_type = serializers.ChoiceField(choices=Farm.VARIETY_TYPE_CHOICES, required=False, allow_null=True)
+    variety_subtype = serializers.ChoiceField(choices=Farm.VARIETY_SUBTYPE_CHOICES, required=False, allow_null=True)
+    variety_timing = serializers.ChoiceField(choices=Farm.VARIETY_TIMING_CHOICES, required=False, allow_null=True)
+    plant_age = serializers.ChoiceField(choices=Farm.PLANT_AGE_CHOICES, required=False, allow_null=True)
+
+    foundation_pruning_date = serializers.DateField(required=False, allow_null=True)
+    fruit_pruning_date = serializers.DateField(required=False, allow_null=True)
+    last_harvesting_date = serializers.DateField(required=False, allow_null=True)
+    resting_period_days = serializers.IntegerField(required=False, allow_null=True)
+
+    # Drip irrigation fields
+    row_spacing = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    plant_spacing = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    flow_rate_liter_per_hour = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    emitters_per_plant = serializers.IntegerField(required=False, allow_null=True)
+
     class Meta:
-        model = Farm
-        fields = [
-            'id',
-            'farm_uid',
-            'farm_owner',
-            'farm_owner_id',
-            'created_by',
-            'plot',
-            'plot_id',
-            'address',
-            'area_size',
-            'soil_type',
-            'soil_type_id',
-            'crop_type',
-            'crop_type_id',
-            'farm_document',
-            'plantation_date',
-            'spacing_a',
-            'spacing_b',
-            'crop_variety',
-            'plants_in_field',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['farm_uid', 'farm_owner', 'created_by', 'created_at', 'updated_at']
+            model = Farm
+            fields = [
+                'id',
+                'farm_uid',
+                'farm_owner',
+                'farm_owner_id',
+                'created_by',
+                'plot',
+                'plot_id',
+                'address',
+                'area_size',
+                'soil_type',
+                'soil_type_id',
+                'crop_type',
+                'crop_type_name',
+                'farm_document',
+                'plantation_date',
+                'spacing_a',
+                'spacing_b',
+                'sugarcane_plantation_type',   # added
+                'sugarcane_planting_method',   # added
+                'crop_variety',
+                'grapes_plantation_type',
+                'variety_type',
+                'variety_subtype',
+                'variety_timing',
+                'plant_age',
+                'plants_in_field',
+                'foundation_pruning_date',
+                'fruit_pruning_date',
+                'last_harvesting_date',
+                'resting_period_days',
+                'row_spacing',
+                'plant_spacing',
+                'flow_rate_liter_per_hour',
+                'emitters_per_plant',
+                'created_at',
+                'updated_at',
+            ]
+            read_only_fields = ['farm_uid', 'farm_owner', 'created_by', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         user = self.context['request'].user
 
-        # Auto-assign logic for field officers
-        if user.has_role('fieldofficer'):
-            if 'farm_owner' not in validated_data:
-                # Try to auto-assign the most recent farmer
-                try:
-                    from .auto_assignment_service import AutoAssignmentService
-                    recent_farmer = AutoAssignmentService.get_most_recent_farmer_by_field_officer(user)
-                    
-                    if recent_farmer:
-                        validated_data['farm_owner'] = recent_farmer
-                        validated_data['created_by'] = user
-                    else:
-                        raise serializers.ValidationError({
-                            'farm_owner_id': 'No recent farmer found. Please specify farm_owner_id or create a farmer first.'
-                        })
-                except Exception as e:
+        # Auto-assign farm_owner for field officers if not provided
+        if user.has_role('fieldofficer') and not validated_data.get('farm_owner'):
+            try:
+                from .auto_assignment_service import AutoAssignmentService
+                recent_farmer = AutoAssignmentService.get_most_recent_farmer_by_field_officer(user)
+                if recent_farmer:
+                    validated_data['farm_owner'] = recent_farmer
+                else:
                     raise serializers.ValidationError({
-                        'farm_owner_id': f'Auto-assignment failed: {str(e)}. Please specify farm_owner_id.'
+                        'farm_owner_id': 'No recent farmer found. Please specify farm_owner_id.'
                     })
+            except Exception as e:
+                raise serializers.ValidationError({
+                    'farm_owner_id': f'Auto-assignment failed: {str(e)}. Please specify farm_owner_id.'
+                })
 
-        # Default to the request user if farm_owner is not specified and not a field officer
+        # Default farm_owner if still not provided
         validated_data.setdefault('farm_owner', user)
-        # created_by will be set in the view perform_create
-        return super().create(validated_data)
-    
+
+        # Always set created_by to the current user
+        validated_data['created_by'] = user
+
+        # Default industry if not provided
+        if 'industry' not in validated_data or validated_data['industry'] is None:
+            from .utils import get_user_industry
+            validated_data['industry'] = get_user_industry(user)
+        # --- Handle crop_type_name ---
+        crop_name = validated_data.pop('crop_type_name', None)
+        if crop_name:
+            try:
+                validated_data['crop_type'] = CropType.objects.get(name__iexact=crop_name)
+            except CropType.DoesNotExist:
+                raise serializers.ValidationError({
+                    'crop_type_name': f"CropType '{crop_name}' does not exist."
+                })
+
+
+        # --- Ensure grapes and sugarcane fields are present ---
+        grapes_fields = [
+            'grapes_plantation_type',
+            'variety_type',
+            'variety_subtype',
+            'variety_timing',
+            'plant_age',
+            'foundation_pruning_date',
+            'fruit_pruning_date',
+            'last_harvesting_date',
+            'resting_period_days',
+            'row_spacing',
+            'plant_spacing',
+            'flow_rate_liter_per_hour',
+            'emitters_per_plant',
+            'crop_variety',
+        ]
+
+        sugarcane_fields = [
+            'sugarcane_plantation_type',
+            'sugarcane_planting_method',
+        ]
+
+        for field in grapes_fields + sugarcane_fields:
+            validated_data.setdefault(field, None)  # Default to None if missing
+
+        # Create farm with all validated data
+        farm = Farm.objects.create(**validated_data)
+
+        return farm
+
+    def update(self, instance, validated_data):
+        # Ensure update works for PATCH/PUT
+        return super().update(instance, validated_data)
+
     def to_representation(self, instance):
-        # Override to pass farm instance to CropTypeSerializer
         representation = super().to_representation(instance)
-        if 'crop_type' in representation and instance.crop_type:
-            # Pass farm instance to crop_type serializer context
-            crop_type_serializer = CropTypeSerializer(
-                instance.crop_type,
-                context={'farm': instance, **self.context}
-            )
-            representation['crop_type'] = crop_type_serializer.data
+
+        # --- Include related FarmIrrigation data if exists ---
+        irrigation = getattr(instance, 'irrigation', None)
+        if irrigation:
+            representation['irrigation'] = {
+                'id': irrigation.id,
+                'farm_uid': irrigation.farm_uid,
+                'irrigation_type': irrigation.irrigation_type.id if irrigation.irrigation_type else None,
+                'irrigation_type_name': getattr(irrigation, 'irrigation_type_name', None),
+                'irrigation_type_display': getattr(irrigation, 'irrigation_type_display', None),
+                'motor_horsepower': irrigation.motor_horsepower,
+                'pipe_width_inches': irrigation.pipe_width_inches,
+                'distance_motor_to_plot_m': irrigation.distance_motor_to_plot_m,
+                'plants_per_acre': irrigation.plants_per_acre,
+                'flow_rate_lph': irrigation.flow_rate_lph,
+                'emitters_count': irrigation.emitters_count,
+                'location': {
+                    'type': 'Point',
+                    'coordinates': [irrigation.location.x, irrigation.location.y] if irrigation.location else [None, None]
+                } if irrigation.location else None
+            }
+        else:
+            # Always include irrigation key even if None
+            representation['irrigation'] = None
+
+        # --- Ensure grapes fields always exist ---
+        grapes_fields = [
+            'grapes_plantation_type',
+            'variety_type',
+            'variety_subtype',
+            'variety_timing',
+            'plant_age',
+            'foundation_pruning_date',
+            'fruit_pruning_date',
+            'last_harvesting_date',
+            'resting_period_days',
+            'row_spacing',
+            'plant_spacing',
+            'flow_rate_liter_per_hour',
+            'emitters_per_plant',
+            'crop_variety',
+        ]
+
+        for field in grapes_fields:
+            representation.setdefault(field, None)
+
+        # --- Ensure sugarcane fields always exist ---
+        sugarcane_fields = [
+            'sugarcane_plantation_type',
+            'sugarcane_planting_method',
+        ]
+
+        for field in sugarcane_fields:
+            representation.setdefault(field, None)
+
         return representation
 
 
 class FarmDetailSerializer(FarmSerializer):
     images      = FarmImageSerializer(many=True, read_only=True)
     sensors     = FarmSensorSerializer(many=True, read_only=True)
-    irrigations = FarmIrrigationSerializer(many=True, read_only=True)
+    irrigations = FarmIrrigationSerializer(source='farmirrigation_set',many=True, read_only=True)
 
     class Meta(FarmSerializer.Meta):
         fields = FarmSerializer.Meta.fields + [
@@ -571,3 +730,8 @@ class FarmGeoSerializer(GeoFeatureModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+class GrapseReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GrapseReport
+        fields = '__all__'

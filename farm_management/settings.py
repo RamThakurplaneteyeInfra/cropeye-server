@@ -148,14 +148,17 @@ WSGI_APPLICATION = 'farm_management.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': os.environ.get('DB_NAME', 'neoce'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'admin'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',  # use 'django.db.backends.postgresql' if not using GIS
+        'NAME': os.environ.get('DB_NAME', 'cropeye'),       # default local DB name
+        'USER': os.environ.get('DB_USER', 'cropeye_user'),  # default local DB user
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'cropeye123'),  # default password
+        'HOST': os.environ.get('DB_HOST', 'localhost'),     # local DB host
+        'PORT': os.environ.get('DB_PORT', '5432'),          # default PostgreSQL port
+        # Remove SSL options for local development
     }
 }
+
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

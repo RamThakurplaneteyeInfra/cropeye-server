@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from inventory.models import InventoryItem
+from .validators import validate_gstin  # add this import
+
 
 # Indian States list for dropdown
 INDIAN_STATES = [
@@ -65,7 +67,7 @@ class Vendor(models.Model):
     contact_person = models.CharField(max_length=100, blank=True)
     email = models.EmailField(verbose_name="Email ID")
     phone = models.CharField(max_length=20, verbose_name="Mobile Number")
-    gstin_number = models.CharField(max_length=15, blank=True, null=True, unique=True, verbose_name="GSTIN Number", help_text="15-digit GSTIN number")
+    gstin_number = models.CharField(max_length=15, blank=True, null=True, unique=True, verbose_name="GSTIN Number", help_text="15-digit GSTIN number", validators=[validate_gstin] )
     state = models.CharField(max_length=100, choices=INDIAN_STATES, blank=True, null=True, verbose_name="State")
     city = models.CharField(max_length=100, blank=True, verbose_name="City")
     address = models.TextField()

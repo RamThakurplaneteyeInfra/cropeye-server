@@ -42,6 +42,15 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to bypass get_queryset filtering
+        but still enforce permissions.
+        """
+        task = get_object_or_404(Task, pk=kwargs['pk'])
+        self.check_object_permissions(request, task)
+        task.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)    
 
     @action(detail=True, methods=['post'])
     def add_comment(self, request, pk=None):
@@ -86,6 +95,11 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         task = get_object_or_404(Task, pk=self.kwargs['task_pk'])
         serializer.save(task=task, user=self.request.user)
+    def destroy(self, request, *args, **kwargs):
+        comment = get_object_or_404(TaskComment, pk=kwargs['pk'])
+        self.check_object_permissions(request, comment)
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TaskAttachmentViewSet(viewsets.ModelViewSet):
@@ -98,3 +112,9 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         task = get_object_or_404(Task, pk=self.kwargs['task_pk'])
         serializer.save(task=task, uploaded_by=self.request.user)
+    
+    def destroy(self, request, *args, **kwargs):
+        attachment = get_object_or_404(TaskAttachment, pk=kwargs['pk'])
+        self.check_object_permissions(request, attachment)
+        attachment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

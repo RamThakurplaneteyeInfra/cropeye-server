@@ -354,6 +354,7 @@ class CompleteFarmerRegistrationService:
                 defaults={'description': f"Auto-created: {farm_data['soil_type_name']}"}
             )
         
+        
         # Get crop type if provided
         crop_type = None
         if farm_data.get('crop_type_id'):
@@ -517,19 +518,37 @@ class CompleteFarmerRegistrationService:
         
         # Create farm
         farm = Farm.objects.create(
-            address=farm_data['address'],
-            area_size=farm_data['area_size'],
-            farm_owner=farmer,  # Auto-assign to farmer
-            created_by=field_officer,
-            plot=plot,
-            soil_type=soil_type,
-            crop_type=crop_type,
-            plantation_date=plantation_date,
-            spacing_a=farm_data.get('spacing_a'),
-            spacing_b=farm_data.get('spacing_b'),
-            crop_variety=crop_variety,
-            industry=industry  # Assign industry from field officer
-        )
+        address=farm_data['address'],
+        area_size=farm_data['area_size'],
+        farm_owner=farmer,
+        created_by=field_officer,
+        plot=plot,
+        soil_type=soil_type,
+        crop_type=crop_type,
+        plantation_date=plantation_date,
+        spacing_a=farm_data.get('spacing_a'),
+        spacing_b=farm_data.get('spacing_b'),
+        crop_variety=crop_variety,
+        industry=industry,
+        
+        # Add the rest of your fields
+        sugarcane_plantation_type=farm_data.get('sugarcane_plantation_type'),
+        sugarcane_planting_method=farm_data.get('sugarcane_planting_method'),
+        grapes_plantation_type=farm_data.get('grapes_plantation_type'),
+        variety_type=farm_data.get('variety_type'),
+        variety_subtype=farm_data.get('variety_subtype'),
+        variety_timing=farm_data.get('variety_timing'),
+        plant_age=farm_data.get('plant_age'),
+        foundation_pruning_date=farm_data.get('foundation_pruning_date'),
+        fruit_pruning_date=farm_data.get('fruit_pruning_date'),
+        last_harvesting_date=farm_data.get('last_harvesting_date'),
+        resting_period_days=farm_data.get('resting_period_days'),
+        row_spacing=farm_data.get('row_spacing'),
+        plant_spacing=farm_data.get('plant_spacing'),
+        flow_rate_liter_per_hour=farm_data.get('flow_rate_liter_per_hour'),
+        emitters_per_plant=farm_data.get('emitters_per_plant'),
+    )
+
         
         logger.info(f"Created farm: {farm.farm_uid} (ID: {farm.id}) for farmer {farmer.username} with plantation_date: {plantation_date}, crop_variety: {crop_variety}")
         return farm

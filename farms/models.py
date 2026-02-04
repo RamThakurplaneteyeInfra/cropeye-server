@@ -362,7 +362,7 @@ class Plot(models.Model):
 
 
 class Farm(models.Model):
-    farm_uid      = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    farm_uid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     
     # Multi-tenant: Industry association
     industry = models.ForeignKey(
@@ -374,19 +374,19 @@ class Farm(models.Model):
         help_text="Industry this farm belongs to"
     )
     
-    farm_owner    = models.ForeignKey(
+    farm_owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='farms'
     )
-    created_by    = models.ForeignKey(
+    created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='created_farms'
     )
-    plot          = models.ForeignKey(
+    plot = models.ForeignKey(
         Plot,
         on_delete=models.SET_NULL,
         null=True,
@@ -394,50 +394,158 @@ class Farm(models.Model):
         related_name='farms'
     )
 
-    address       = models.TextField()
-    area_size     = models.DecimalField(max_digits=10, decimal_places=2,
-                                        help_text="Size in acres")
-    soil_type     = models.ForeignKey(
+    address = models.TextField()
+    area_size = models.DecimalField(max_digits=10, decimal_places=2, help_text="Size in acres")
+    soil_type = models.ForeignKey(
         SoilType,
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
-    crop_type     = models.ForeignKey(
+    crop_type = models.ForeignKey(
         CropType,
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
-    farm_document = models.FileField(upload_to='farm_documents/',
-                                     null=True,
-                                     blank=True)
+    farm_document = models.FileField(upload_to='farm_documents/', null=True, blank=True)
     
-    # Plantation date field
-    plantation_date = models.DateField(
+    plantation_date = models.DateField(null=True, blank=True, help_text="Date when crops were planted")
+    
+    spacing_a = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Spacing A in meters")
+    spacing_b = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Spacing B in meters")
+    
+    crop_variety = models.CharField(max_length=200, null=True, blank=True, help_text="Crop variety (e.g., Co 86032, Co 8371, etc.)")
+    
+    SUGARCANE_PLANTATION_CHOICES = [
+        ('', '---------'),
+        ('adsali', 'Adsali'),
+        ('suru', 'Suru'),
+        ('ratoon', 'Ratoon'),
+        ('pre-seasonal', 'Pre-Seasonal'),
+        ('post-seasonal', 'Post-Seasonal'),
+        ('pre_seasonal', 'Pre-Seasonal'),
+        ('other', 'Other'),
+    ]
+    sugarcane_plantation_type = models.CharField(
+        max_length=20,
+        choices=SUGARCANE_PLANTATION_CHOICES,
+        null=True,
+        blank=True
+    )
+
+    SUGARCANE_PLANTING_METHOD_CHOICES = [
+        ('', '---------'),
+        ('3_bud', '3 Bud Method'),
+        ('2_bud', '2 Bud Method'),
+        ('1_bud', '1 Bud Method'),
+        ('1_bud_stip_Method', '1 Bud (stip Method)'),
+        ('other', 'Other')
+    ]
+    sugarcane_planting_method = models.CharField(
+        max_length=30,
+        choices=SUGARCANE_PLANTING_METHOD_CHOICES,
+        null=True,
+        blank=True
+    )
+
+    # ===== Grapes Dropdowns =====
+    GRAPES_PLANTATION_CHOICES = [
+        ('', '---------'),
+        ('wine', 'Wine Grapes'),
+        ('table', 'Table Grapes'),
+        ('late', 'Late'),
+        ('early', 'Early'),
+        ('pre_season', 'Pre-Season'),
+        ('seasonal', 'Seasonal'),
+    ]
+    grapes_plantation_type = models.CharField(
+        max_length=20,
+        choices=GRAPES_PLANTATION_CHOICES,
+        null=True,
+        blank=True
+    )
+
+
+    # ===== New Fields for Variety Info =====
+    VARIETY_TYPE_CHOICES = [
+        ('pre_season', 'Pre-season'),
+        ('seasonal', 'Seasonal'),
+    ]
+    variety_type = models.CharField(max_length=20, choices=VARIETY_TYPE_CHOICES, null=True, blank=True)
+
+    VARIETY_SUBTYPE_CHOICES = [
+        ('wine_grapes', 'Wine Grapes'),
+        ('table_grapes', 'Table Grapes'),
+    ]
+    variety_subtype = models.CharField(max_length=20, choices=VARIETY_SUBTYPE_CHOICES, null=True, blank=True)
+
+    VARIETY_TIMING_CHOICES = [
+        ('early', 'Early'),
+        ('late', 'Late'),
+    ]
+    variety_timing = models.CharField(max_length=10, choices=VARIETY_TIMING_CHOICES, null=True, blank=True)
+
+    PLANT_AGE_CHOICES = [
+        ('0_2', '0-2 years'),
+        ('2_3', '2-3 years'),
+        ('above_3', 'Above 3 years'),
+    ]
+    plant_age = models.CharField(max_length=10, choices=PLANT_AGE_CHOICES, null=True, blank=True)
+    # Grapes-specific lifecycle fields
+    foundation_pruning_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Date when crops were planted"
+        help_text="Foundation pruning date (Grapes only)"
     )
-    
-    # Spacing fields for plant calculation
-    spacing_a     = models.DecimalField(max_digits=8, decimal_places=2,
-                                        null=True, blank=True,
-                                        help_text="Spacing A in meters")
-    spacing_b     = models.DecimalField(max_digits=8, decimal_places=2,
-                                        null=True, blank=True,
-                                        help_text="Spacing B in meters")
-    
-    # Crop variety field
-    crop_variety  = models.CharField(
-        max_length=200,
+    fruit_pruning_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Crop variety (e.g., Co 86032, Co 8371, etc.)"
+        help_text="Fruit pruning date (Grapes only)"
     )
-    
-    created_at    = models.DateTimeField(auto_now_add=True)
-    updated_at    = models.DateTimeField(auto_now=True)
+    last_harvesting_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Last harvesting date (Grapes only)"
+    )
+    resting_period_days = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Resting period in days (Grapes only)"
+    )
+
+    # Grapes drip irrigation
+    row_spacing = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Row spacing in meters (Grapes drip irrigation)"
+    )
+    plant_spacing = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Plant spacing in meters (Grapes drip irrigation)"
+    )
+    flow_rate_liter_per_hour = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Flow rate in liters/hour (Grapes drip irrigation)"
+    )
+    emitters_per_plant = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of emitters per plant (Grapes drip irrigation)"
+    )
+
+    # =====================================
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -446,37 +554,23 @@ class Farm(models.Model):
         return f"{self.farm_owner.username} – {self.farm_uid}"
 
     def farm_uid_str(self) -> str:
-        """
-        Returns a readable code:
-          - If no plot: USERNAME-UUID
-          - If plot with both gat & plot numbers: USERNAME-GAT-PLOT-UUID
-        """
         uid = str(self.farm_uid).replace('-', '').upper()
         if self.plot and self.plot.gat_number and self.plot.plot_number:
             return f"{self.farm_owner.username}-{self.plot.gat_number}-{self.plot.plot_number}-{uid}"
         return f"{self.farm_owner.username}-{uid}"
-    
+
     @property
     def plants_in_field(self):
-        """
-        Calculate number of plants in field using formula:
-        total area * 43560 / (spacing_a * spacing_b)
-        where spacing_a and spacing_b are used as-is without unit conversion
-        """
         if not self.spacing_a or not self.spacing_b or not self.area_size:
             return None
-        
         try:
-            # Convert area_size from acres to square feet
-            area_sq_ft = float(self.area_size) * 43560  # 1 acre = 43560 sq feet
-            
-            # Calculate plants using formula: total area * 43560 / (spacing_a * spacing_b)
-            # spacing_a and spacing_b are used as-is without any unit conversion
+            area_sq_ft = float(self.area_size) * 43560
             plants = area_sq_ft / (float(self.spacing_a) * float(self.spacing_b))
             return int(plants)
         except (ValueError, ZeroDivisionError, TypeError):
             return None
-
+    
+    
 
 class FarmIrrigation(models.Model):
     farm                     = models.ForeignKey(Farm,
@@ -497,6 +591,8 @@ class FarmIrrigation(models.Model):
     flow_rate_lph            = models.FloatField(null=True, blank=True)
     emitters_count           = models.IntegerField(null=True, blank=True)
 
+   
+
     class Meta:
         ordering = ['-id']
 
@@ -506,7 +602,7 @@ class FarmIrrigation(models.Model):
     def clean(self):
         """Ensure required fields for each irrigation type."""
         if self.irrigation_type:
-            name = self.irrigation_type.name
+            name = self.irrigation_type.name.lower()
             if name == 'flood':
                 if not self.motor_horsepower:
                     raise ValidationError("Motor horsepower is required for flood irrigation.")
@@ -515,14 +611,9 @@ class FarmIrrigation(models.Model):
                 if not self.distance_motor_to_plot_m:
                     raise ValidationError("Distance from motor to plot is required for flood irrigation.")
             elif name == 'drip':
-                # These fields are now optional as they can be calculated or are not always required.
-                # We can keep some soft validation if needed, but for now, we'll relax it.
-                # For example, if flow_rate is given, emitters_count might be expected.
+                # Optional fields, soft validation
                 if self.flow_rate_lph and not self.emitters_count:
-                    # This is an example of a softer validation. For now, we remove the strict checks.
                     pass
-                # The strict check for plants_per_acre is removed to allow for automatic calculation.
-
             elif name == 'sprinkler' and not self.pipe_width_inches:
                 raise ValidationError("Pipe width (inches) is required for sprinkler irrigation.")
 
@@ -568,3 +659,23 @@ class FarmImage(models.Model):
 
     def __str__(self):
         return f"{self.farm.farm_uid_str()} – {self.title}"
+    
+class GrapseReport(models.Model):
+    FILE_TYPE_CHOICES = [
+        ('residue', 'Residue Analysis'),
+        ('variety', 'Variety Identification'),
+        ('soil', 'Soil Report'),
+    ]
+
+    plot = models.ForeignKey('Plot', on_delete=models.CASCADE, related_name='files')
+    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES)
+    file = models.FileField(upload_to='plot_files/')
+    
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_files')
+    field_officer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='field_officer_files', null=True, blank=True)
+    
+    notes = models.TextField(blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.plot} – {self.get_file_type_display()} – {self.uploaded_at.date()}"
