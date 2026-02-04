@@ -3,6 +3,31 @@
 from django.db import migrations, models
 
 
+def add_columns_if_not_exists(apps, schema_editor):
+    """Add columns only if they don't exist (idempotent for partially applied migrations)."""
+    with schema_editor.connection.cursor() as cursor:
+        # PostgreSQL: ADD COLUMN IF NOT EXISTS
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            ADD COLUMN IF NOT EXISTS plant_age VARCHAR(10) NULL,
+            ADD COLUMN IF NOT EXISTS variety_subtype VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS variety_timing VARCHAR(10) NULL,
+            ADD COLUMN IF NOT EXISTS variety_type VARCHAR(20) NULL;
+        """)
+
+
+def reverse_add_columns(apps, schema_editor):
+    """Remove columns on reverse migration."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            DROP COLUMN IF EXISTS plant_age,
+            DROP COLUMN IF EXISTS variety_subtype,
+            DROP COLUMN IF EXISTS variety_timing,
+            DROP COLUMN IF EXISTS variety_type;
+        """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,24 +35,30 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='farm',
-            name='plant_age',
-            field=models.CharField(blank=True, choices=[('0_2', '0-2 years'), ('2_3', '2-3 years'), ('above_3', 'Above 3 years')], max_length=10, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='variety_subtype',
-            field=models.CharField(blank=True, choices=[('wine_grapes', 'Wine Grapes'), ('table_grapes', 'Table Grapes')], max_length=20, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='variety_timing',
-            field=models.CharField(blank=True, choices=[('early', 'Early'), ('late', 'Late')], max_length=10, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='variety_type',
-            field=models.CharField(blank=True, choices=[('pre_season', 'Pre-season'), ('seasonal', 'Seasonal')], max_length=20, null=True),
+        migrations.RunPython(add_columns_if_not_exists, reverse_add_columns),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='farm',
+                    name='plant_age',
+                    field=models.CharField(blank=True, choices=[('0_2', '0-2 years'), ('2_3', '2-3 years'), ('above_3', 'Above 3 years')], max_length=10, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='variety_subtype',
+                    field=models.CharField(blank=True, choices=[('wine_grapes', 'Wine Grapes'), ('table_grapes', 'Table Grapes')], max_length=20, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='variety_timing',
+                    field=models.CharField(blank=True, choices=[('early', 'Early'), ('late', 'Late')], max_length=10, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='variety_type',
+                    field=models.CharField(blank=True, choices=[('pre_season', 'Pre-season'), ('seasonal', 'Seasonal')], max_length=20, null=True),
+                ),
+            ],
+            database_operations=[],
         ),
     ]

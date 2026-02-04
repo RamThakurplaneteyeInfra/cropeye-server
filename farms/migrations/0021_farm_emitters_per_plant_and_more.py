@@ -3,6 +3,38 @@
 from django.db import migrations, models
 
 
+def add_columns_if_not_exists(apps, schema_editor):
+    """Add columns only if they don't exist (idempotent for partially applied migrations)."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            ADD COLUMN IF NOT EXISTS emitters_per_plant INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS flow_rate_liter_per_hour NUMERIC(10, 2) NULL,
+            ADD COLUMN IF NOT EXISTS foundation_pruning_date DATE NULL,
+            ADD COLUMN IF NOT EXISTS fruit_pruning_date DATE NULL,
+            ADD COLUMN IF NOT EXISTS last_harvesting_date DATE NULL,
+            ADD COLUMN IF NOT EXISTS plant_spacing NUMERIC(8, 2) NULL,
+            ADD COLUMN IF NOT EXISTS resting_period_days INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS row_spacing NUMERIC(8, 2) NULL;
+        """)
+
+
+def reverse_add_columns(apps, schema_editor):
+    """Remove columns on reverse migration."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            DROP COLUMN IF EXISTS emitters_per_plant,
+            DROP COLUMN IF EXISTS flow_rate_liter_per_hour,
+            DROP COLUMN IF EXISTS foundation_pruning_date,
+            DROP COLUMN IF EXISTS fruit_pruning_date,
+            DROP COLUMN IF EXISTS last_harvesting_date,
+            DROP COLUMN IF EXISTS plant_spacing,
+            DROP COLUMN IF EXISTS resting_period_days,
+            DROP COLUMN IF EXISTS row_spacing;
+        """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,44 +42,50 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='farm',
-            name='emitters_per_plant',
-            field=models.IntegerField(blank=True, help_text='Number of emitters per plant (Grapes drip irrigation)', null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='flow_rate_liter_per_hour',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Flow rate in liters/hour (Grapes drip irrigation)', max_digits=10, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='foundation_pruning_date',
-            field=models.DateField(blank=True, help_text='Foundation pruning date (Grapes only)', null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='fruit_pruning_date',
-            field=models.DateField(blank=True, help_text='Fruit pruning date (Grapes only)', null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='last_harvesting_date',
-            field=models.DateField(blank=True, help_text='Last harvesting date (Grapes only)', null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='plant_spacing',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Plant spacing in meters (Grapes drip irrigation)', max_digits=8, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='resting_period_days',
-            field=models.IntegerField(blank=True, help_text='Resting period in days (Grapes only)', null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='row_spacing',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Row spacing in meters (Grapes drip irrigation)', max_digits=8, null=True),
+        migrations.RunPython(add_columns_if_not_exists, reverse_add_columns),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='farm',
+                    name='emitters_per_plant',
+                    field=models.IntegerField(blank=True, help_text='Number of emitters per plant (Grapes drip irrigation)', null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='flow_rate_liter_per_hour',
+                    field=models.DecimalField(blank=True, decimal_places=2, help_text='Flow rate in liters/hour (Grapes drip irrigation)', max_digits=10, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='foundation_pruning_date',
+                    field=models.DateField(blank=True, help_text='Foundation pruning date (Grapes only)', null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='fruit_pruning_date',
+                    field=models.DateField(blank=True, help_text='Fruit pruning date (Grapes only)', null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='last_harvesting_date',
+                    field=models.DateField(blank=True, help_text='Last harvesting date (Grapes only)', null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='plant_spacing',
+                    field=models.DecimalField(blank=True, decimal_places=2, help_text='Plant spacing in meters (Grapes drip irrigation)', max_digits=8, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='resting_period_days',
+                    field=models.IntegerField(blank=True, help_text='Resting period in days (Grapes only)', null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='row_spacing',
+                    field=models.DecimalField(blank=True, decimal_places=2, help_text='Row spacing in meters (Grapes drip irrigation)', max_digits=8, null=True),
+                ),
+            ],
+            database_operations=[],
         ),
     ]

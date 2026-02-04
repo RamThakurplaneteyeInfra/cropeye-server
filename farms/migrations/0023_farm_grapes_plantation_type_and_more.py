@@ -3,6 +3,28 @@
 from django.db import migrations, models
 
 
+def add_columns_if_not_exists(apps, schema_editor):
+    """Add columns only if they don't exist (idempotent for partially applied migrations)."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            ADD COLUMN IF NOT EXISTS grapes_plantation_type VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS sugarcane_plantation_type VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS sugarcane_planting_method VARCHAR(30) NULL;
+        """)
+
+
+def reverse_add_columns(apps, schema_editor):
+    """Remove columns on reverse migration."""
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("""
+            ALTER TABLE farms_farm
+            DROP COLUMN IF EXISTS grapes_plantation_type,
+            DROP COLUMN IF EXISTS sugarcane_plantation_type,
+            DROP COLUMN IF EXISTS sugarcane_planting_method;
+        """)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,19 +32,25 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='farm',
-            name='grapes_plantation_type',
-            field=models.CharField(blank=True, choices=[('', '---------'), ('wine', 'Wine Grapes'), ('table', 'Table Grapes'), ('late', 'Late'), ('early', 'Early'), ('pre_season', 'Pre-Season'), ('seasonal', 'Seasonal')], max_length=20, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='sugarcane_plantation_type',
-            field=models.CharField(blank=True, choices=[('', '---------'), ('adsali', 'Adsali'), ('suru', 'Suru'), ('ratoon', 'Ratoon'), ('pre-seasonal', 'Pre-Seasonal'), ('post-seasonal', 'Post-Seasonal'), ('pre_seasonal', 'Pre-Seasonal'), ('other', 'Other')], max_length=20, null=True),
-        ),
-        migrations.AddField(
-            model_name='farm',
-            name='sugarcane_planting_method',
-            field=models.CharField(blank=True, choices=[('', '---------'), ('3_bud', '3 Bud Method'), ('2_bud', '2 Bud Method'), ('1_bud', '1 Bud Method'), ('1_bud_stip_Method', '1 Bud (stip Method)'), ('other', 'Other')], max_length=30, null=True),
+        migrations.RunPython(add_columns_if_not_exists, reverse_add_columns),
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='farm',
+                    name='grapes_plantation_type',
+                    field=models.CharField(blank=True, choices=[('', '---------'), ('wine', 'Wine Grapes'), ('table', 'Table Grapes'), ('late', 'Late'), ('early', 'Early'), ('pre_season', 'Pre-Season'), ('seasonal', 'Seasonal')], max_length=20, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='sugarcane_plantation_type',
+                    field=models.CharField(blank=True, choices=[('', '---------'), ('adsali', 'Adsali'), ('suru', 'Suru'), ('ratoon', 'Ratoon'), ('pre-seasonal', 'Pre-Seasonal'), ('post-seasonal', 'Post-Seasonal'), ('pre_seasonal', 'Pre-Seasonal'), ('other', 'Other')], max_length=20, null=True),
+                ),
+                migrations.AddField(
+                    model_name='farm',
+                    name='sugarcane_planting_method',
+                    field=models.CharField(blank=True, choices=[('', '---------'), ('3_bud', '3 Bud Method'), ('2_bud', '2 Bud Method'), ('1_bud', '1 Bud Method'), ('1_bud_stip_Method', '1 Bud (stip Method)'), ('other', 'Other')], max_length=30, null=True),
+                ),
+            ],
+            database_operations=[],
         ),
     ]

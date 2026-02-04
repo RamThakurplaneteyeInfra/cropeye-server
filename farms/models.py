@@ -658,9 +658,9 @@ class FarmImage(models.Model):
     uploaded_at  = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-<<<<<<< HEAD
         return f"{self.farm.farm_uid_str()} – {self.title}"
-    
+
+
 class GrapseReport(models.Model):
     FILE_TYPE_CHOICES = [
         ('residue', 'Residue Analysis'),
@@ -680,25 +680,3 @@ class GrapseReport(models.Model):
 
     def __str__(self):
         return f"{self.plot} – {self.get_file_type_display()} – {self.uploaded_at.date()}"
-class GrapseReport(models.Model):
-    FILE_TYPE_CHOICES = [
-        ('residue', 'Residue Analysis'),
-        ('variety', 'Variety Identification'),
-        ('soil', 'Soil Report'),
-    ]
-
-    plot = models.ForeignKey('Plot', on_delete=models.CASCADE, related_name='files')
-    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES)
-    file = models.FileField(upload_to='plot_files/')
-    
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_files')
-    field_officer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='field_officer_files', null=True, blank=True)
-    
-    notes = models.TextField(blank=True, null=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.plot} – {self.get_file_type_display()} – {self.uploaded_at.date()}"
-=======
-        return f"{self.farm.farm_uid_str()} – {self.title}"
->>>>>>> 13a0b6b (Initial commit)
